@@ -137,31 +137,45 @@ Output is CSV:
 case,parity,rust_elapsed_ms,cpp_elapsed_ms,rust_wall_s,cpp_wall_s,rust_rss_kb,cpp_rss_kb,rust_paths,cpp_paths,rust_points,cpp_points,rust_area_abs,cpp_area_abs,rust_checksum,cpp_checksum
 ```
 
-During the cleanup phase, a `parity=fail` row is useful evidence: it means the
-case found a Rust/C++ output difference by summary metrics and should be reduced
-into a focused conformance test before refactoring the relevant code.
-
 Per-engine raw outputs are written to `clipper-rust/target/bench/`.
 
-Latest local smoke run, one iteration per case:
+Latest local arena run, ten iterations per case:
 
 | Case | Parity | Rust ms | C++ ms | Rust/C++ time | Rust RSS KB | C++ RSS KB | Rust/C++ RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `union_dense` | ok | 5.639 | 14.974 | 0.38x | 4800 | 6400 | 0.75x |
-| `touching_rect_grid` | ok | 49.485 | 46.228 | 1.07x | 10880 | 11840 | 0.92x |
-| `intersection_grid` | ok | 20.330 | 21.326 | 0.95x | 5120 | 6276 | 0.82x |
-| `difference_holes` | ok | 7.470 | 8.388 | 0.89x | 3840 | 5440 | 0.71x |
-| `nested_holes` | ok | 8.432 | 9.988 | 0.84x | 4160 | 5760 | 0.72x |
-| `strict_simple_stars` | ok | 28.090 | 23.351 | 1.20x | 5760 | 7040 | 0.82x |
-| `open_paths_clip` | ok | 13.248 | 10.204 | 1.30x | 2560 | 3840 | 0.67x |
-| `large_coord_xor` | ok | 11.283 | 10.958 | 1.03x | 3840 | 5120 | 0.75x |
-| `offset_stars` | ok | 99.571 | 101.007 | 0.99x | 30400 | 31680 | 0.96x |
-| `offset_open_round` | ok | 33.536 | 33.664 | 1.00x | 4160 | 6080 | 0.68x |
-| `polytree_closed_nested` | ok | 3.388 | 3.507 | 0.97x | 2880 | 4480 | 0.64x |
+| `union_dense` | ok | 44.615 | 40.430 | 1.10x | 4800 | 6080 | 0.79x |
+| `touching_rect_grid` | ok | 256.359 | 309.865 | 0.83x | 10560 | 11840 | 0.89x |
+| `intersection_grid` | ok | 68.542 | 85.908 | 0.80x | 5120 | 6468 | 0.79x |
+| `difference_holes` | ok | 28.965 | 32.821 | 0.88x | 3840 | 5120 | 0.75x |
+| `nested_holes` | ok | 33.564 | 34.689 | 0.97x | 4160 | 5440 | 0.76x |
+| `strict_simple_stars` | ok | 106.079 | 116.587 | 0.91x | 5308 | 7040 | 0.75x |
+| `open_paths_clip` | ok | 48.396 | 48.603 | 1.00x | 2560 | 4160 | 0.62x |
+| `large_coord_xor` | ok | 40.688 | 47.965 | 0.85x | 4160 | 5760 | 0.72x |
+| `offset_stars` | ok | 625.978 | 804.843 | 0.78x | 30720 | 32016 | 0.96x |
+| `offset_open_round` | ok | 194.720 | 165.326 | 1.18x | 4480 | 5760 | 0.78x |
+| `polytree_closed_nested` | ok | 13.107 | 20.001 | 0.66x | 2880 | 4160 | 0.69x |
 
-Lower ratios are better for Rust. These are smoke numbers from one local run;
-use more iterations for comparison work.
+Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
+target machine before making performance claims.
+
+Arena migration comparison against the prior pointer-allocation Rust baseline:
+
+| Case | Pointer Rust ms | Arena Rust ms | Speedup | Pointer RSS KB | Arena RSS KB | RSS change |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `union_dense` | 48.727 | 44.615 | 1.09x | 4800 | 4800 | 1.00x |
+| `touching_rect_grid` | 386.531 | 256.359 | 1.51x | 10880 | 10560 | 0.97x |
+| `intersection_grid` | 85.559 | 68.542 | 1.25x | 5260 | 5120 | 0.97x |
+| `difference_holes` | 33.819 | 28.965 | 1.17x | 3840 | 3840 | 1.00x |
+| `nested_holes` | 32.407 | 33.564 | 0.97x | 4160 | 4160 | 1.00x |
+| `strict_simple_stars` | 136.168 | 106.079 | 1.28x | 5760 | 5308 | 0.92x |
+| `open_paths_clip` | 52.222 | 48.396 | 1.08x | 2560 | 2560 | 1.00x |
+| `large_coord_xor` | 44.605 | 40.688 | 1.10x | 4160 | 4160 | 1.00x |
+| `offset_stars` | 717.400 | 625.978 | 1.15x | 31136 | 30720 | 0.99x |
+| `offset_open_round` | 199.119 | 194.720 | 1.02x | 4480 | 4480 | 1.00x |
+| `polytree_closed_nested` | 17.691 | 13.107 | 1.35x | 2880 | 2880 | 1.00x |
 
 ## Translation Plan
 
 The original staged plan is saved in `RUST_PORT_PLAN.md`.
+
+The arena migration plan is saved in `ARENA_MIGRATION_PLAN.md`.

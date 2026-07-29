@@ -161,7 +161,7 @@ impl Default for TEdge {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct IntersectNode {
     pub edge1: *mut TEdge,
     pub edge2: *mut TEdge,
@@ -239,7 +239,7 @@ impl Default for OutPt {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Join {
     pub out_pt1: *mut OutPt,
     pub out_pt2: *mut OutPt,

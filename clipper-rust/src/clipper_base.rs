@@ -1,14 +1,67 @@
 use std::collections::BinaryHeap;
+use std::fmt;
+use std::mem::MaybeUninit;
 use std::ptr;
 
 use crate::error::{ClipperError, Result};
 use crate::helpers::{
-    dispose_out_pts, init_edge, init_edge2, is_horizontal, pt2_is_between_pt1_and_pt3, range_test,
-    remove_edge, reverse_horizontal, slopes_equal_3_points,
+    init_edge, init_edge2, is_horizontal, pt2_is_between_pt1_and_pt3, range_test, remove_edge,
+    reverse_horizontal, slopes_equal_3_points,
 };
 use crate::types::{
-    CInt, EdgeSide, IntRect, LocalMinimum, OutRec, Path, Paths, PolyType, SKIP, TEdge, UNASSIGNED,
+    CInt, EdgeSide, IntRect, LocalMinimum, OutPt, OutRec, Path, Paths, PolyType, SKIP, TEdge,
+    UNASSIGNED,
 };
+
+const OUT_PT_BLOCK_SIZE: usize = 4096;
+
+pub struct OutPtArena {
+    blocks: Vec<Box<[MaybeUninit<OutPt>]>>,
+    next: usize,
+}
+
+impl Default for OutPtArena {
+    fn default() -> Self {
+        Self {
+            blocks: Vec::new(),
+            next: OUT_PT_BLOCK_SIZE,
+        }
+    }
+}
+
+impl fmt::Debug for OutPtArena {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OutPtArena")
+            .field("blocks", &self.blocks.len())
+            .field("next", &self.next)
+            .finish()
+    }
+}
+
+impl OutPtArena {
+    pub fn alloc(&mut self, out_pt: OutPt) -> *mut OutPt {
+        if self.next == OUT_PT_BLOCK_SIZE {
+            let block = (0..OUT_PT_BLOCK_SIZE)
+                .map(|_| MaybeUninit::uninit())
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+            self.blocks.push(block);
+            self.next = 0;
+        }
+
+        let ptr = self.blocks.last_mut().unwrap()[self.next].as_mut_ptr();
+        self.next += 1;
+        unsafe {
+            ptr.write(out_pt);
+        }
+        ptr
+    }
+
+    pub fn clear(&mut self) {
+        self.blocks.clear();
+        self.next = OUT_PT_BLOCK_SIZE;
+    }
+}
 
 #[derive(Debug)]
 pub struct ClipperBase {
@@ -19,6 +72,8 @@ pub struct ClipperBase {
     pub preserve_collinear: bool,
     pub has_open_paths: bool,
     pub poly_outs: Vec<*mut OutRec>,
+    pub out_rec_arena: Vec<Box<OutRec>>,
+    pub out_pt_arena: OutPtArena,
     pub active_edges: *mut TEdge,
     pub scanbeam: BinaryHeap<CInt>,
 }
@@ -33,6 +88,8 @@ impl Default for ClipperBase {
             preserve_collinear: false,
             has_open_paths: false,
             poly_outs: Vec::new(),
+            out_rec_arena: Vec::new(),
+            out_pt_arena: OutPtArena::default(),
             active_edges: ptr::null_mut(),
             scanbeam: BinaryHeap::new(),
         }
@@ -421,6 +478,8 @@ impl ClipperBase {
             }
         }
         self.poly_outs.clear();
+        self.out_rec_arena.clear();
+        self.out_pt_arena.clear();
     }
 
     // C++: ClipperBase::DisposeOutRec
@@ -430,12 +489,10 @@ impl ClipperBase {
             return;
         }
 
-        // SAFETY: poly_outs owns OutRec pointers created by create_out_rec.
+        // SAFETY: poly_outs entries point into out_rec_arena and remain valid
+        // until dispose_all_out_recs clears the arena.
         unsafe {
-            if !(*out_rec).pts.is_null() {
-                dispose_out_pts(&mut (*out_rec).pts);
-            }
-            drop(Box::from_raw(out_rec));
+            (*out_rec).pts = ptr::null_mut();
         }
         self.poly_outs[index] = ptr::null_mut();
     }
@@ -464,11 +521,17 @@ impl ClipperBase {
 
     // C++: ClipperBase::CreateOutRec
     pub fn create_out_rec(&mut self) -> *mut OutRec {
-        let mut out_rec = Box::new(OutRec::default());
-        out_rec.idx = self.poly_outs.len() as i32;
-        let result = Box::into_raw(out_rec);
+        self.out_rec_arena.push(Box::new(OutRec {
+            idx: self.poly_outs.len() as i32,
+            ..OutRec::default()
+        }));
+        let result = &mut **self.out_rec_arena.last_mut().unwrap() as *mut OutRec;
         self.poly_outs.push(result);
         result
+    }
+
+    pub fn create_out_pt(&mut self, out_pt: OutPt) -> *mut OutPt {
+        self.out_pt_arena.alloc(out_pt)
     }
 
     // C++: ClipperBase::SwapPositionsInAEL

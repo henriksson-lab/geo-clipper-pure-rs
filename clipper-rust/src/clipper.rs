@@ -3,8 +3,8 @@ use std::ptr;
 use crate::clipper_base::ClipperBase;
 use crate::error::{ClipperError, Result};
 use crate::helpers::{
-    abs, area_out_pt, dispose_out_pts, e2_inserts_before_e1, first_is_bottom_pt, get_bottom_pt,
-    get_overlap, horz_segments_overlap, intersect_point, is_horizontal, poly2_contains_poly1,
+    abs, area_out_pt, e2_inserts_before_e1, first_is_bottom_pt, get_bottom_pt, get_overlap,
+    horz_segments_overlap, intersect_point, is_horizontal, poly2_contains_poly1,
     pt2_is_between_pt1_and_pt3, reverse_poly_pt_links, slopes_equal_3_points,
     slopes_equal_4_points, swap_poly_indexes, swap_sides, top_x,
 };
@@ -16,9 +16,9 @@ use crate::types::{
 #[derive(Debug)]
 pub struct Clipper {
     pub base: ClipperBase,
-    pub joins: Vec<*mut Join>,
-    pub ghost_joins: Vec<*mut Join>,
-    pub intersect_list: Vec<*mut IntersectNode>,
+    pub joins: Vec<Join>,
+    pub ghost_joins: Vec<Join>,
+    pub intersect_list: Vec<IntersectNode>,
     pub clip_type: ClipType,
     pub maxima: Vec<CInt>,
     pub sorted_edges: *mut TEdge,
@@ -469,12 +469,12 @@ impl Clipper {
             if (*e).out_idx < 0 {
                 let out_rec = self.base.create_out_rec();
                 (*out_rec).is_open = (*e).wind_delta == 0;
-                let new_op = Box::into_raw(Box::new(OutPt {
+                let new_op = self.base.create_out_pt(OutPt {
                     idx: (*out_rec).idx,
                     pt,
                     next: ptr::null_mut(),
                     prev: ptr::null_mut(),
-                }));
+                });
                 (*out_rec).pts = new_op;
                 (*new_op).next = new_op;
                 (*new_op).prev = new_op;
@@ -494,12 +494,12 @@ impl Clipper {
                     return (*op).prev;
                 }
 
-                let new_op = Box::into_raw(Box::new(OutPt {
+                let new_op = self.base.create_out_pt(OutPt {
                     idx: (*out_rec).idx,
                     pt,
                     next: op,
                     prev: (*op).prev,
-                }));
+                });
                 (*(*new_op).prev).next = new_op;
                 (*op).prev = new_op;
                 if to_front {
@@ -578,12 +578,12 @@ impl Clipper {
                     for i in 0..self.ghost_joins.len() {
                         let jr = self.ghost_joins[i];
                         if horz_segments_overlap(
-                            (*(*jr).out_pt1).pt.x,
-                            (*jr).off_pt.x,
+                            (*jr.out_pt1).pt.x,
+                            jr.off_pt.x,
                             (*rb).bot.x,
                             (*rb).top.x,
                         ) {
-                            self.add_join((*jr).out_pt1, op1, (*jr).off_pt);
+                            self.add_join(jr.out_pt1, op1, jr.off_pt);
                         }
                     }
                 }
@@ -824,12 +824,11 @@ impl Clipper {
                         if pt.y < top_y {
                             pt = IntPoint::new(top_x(&*e, top_y), top_y);
                         }
-                        let new_node = Box::into_raw(Box::new(IntersectNode {
+                        self.intersect_list.push(IntersectNode {
                             edge1: e,
                             edge2: e_next,
                             pt,
-                        }));
-                        self.intersect_list.push(new_node);
+                        });
 
                         self.swap_positions_in_sel(e, e_next);
                         is_modified = true;
@@ -1253,14 +1252,15 @@ impl Clipper {
 
     // C++: Clipper::ProcessIntersectList
     pub unsafe fn process_intersect_list(&mut self) {
-        let intersect_list = std::mem::take(&mut self.intersect_list);
-        for node in intersect_list {
+        let cnt = self.intersect_list.len();
+        for i in 0..cnt {
+            let node = self.intersect_list[i];
             unsafe {
-                let inode = Box::from_raw(node);
-                self.intersect_edges(inode.edge1, inode.edge2, inode.pt);
-                self.base.swap_positions_in_ael(inode.edge1, inode.edge2);
+                self.intersect_edges(node.edge1, node.edge2, node.pt);
+                self.base.swap_positions_in_ael(node.edge1, node.edge2);
             }
         }
+        self.intersect_list.clear();
     }
 
     // C++: Clipper::FixupIntersectionOrder
@@ -1268,16 +1268,16 @@ impl Clipper {
         unsafe {
             self.copy_ael_to_sel();
             self.intersect_list.sort_unstable_by(|node1, node2| {
-                let y1 = (*(*node1)).pt.y;
-                let y2 = (*(*node2)).pt.y;
+                let y1 = node1.pt.y;
+                let y2 = node2.pt.y;
                 y2.cmp(&y1)
             });
 
             let cnt = self.intersect_list.len();
             for i in 0..cnt {
-                if !edges_adjacent(self.intersect_list[i]) {
+                if !edges_adjacent(&self.intersect_list[i]) {
                     let mut j = i + 1;
-                    while j < cnt && !edges_adjacent(self.intersect_list[j]) {
+                    while j < cnt && !edges_adjacent(&self.intersect_list[j]) {
                         j += 1;
                     }
                     if j == cnt {
@@ -1285,8 +1285,8 @@ impl Clipper {
                     }
                     self.intersect_list.swap(i, j);
                 }
-                let inode = self.intersect_list[i];
-                self.swap_positions_in_sel((*inode).edge1, (*inode).edge2);
+                let inode = &self.intersect_list[i];
+                self.swap_positions_in_sel(inode.edge1, inode.edge2);
             }
         }
         true
@@ -1629,55 +1629,37 @@ impl Clipper {
         op2: *mut crate::types::OutPt,
         off_pt: IntPoint,
     ) {
-        let join = Box::into_raw(Box::new(Join {
+        let join = Join {
             out_pt1: op1,
             out_pt2: op2,
             off_pt,
-        }));
+        };
         self.joins.push(join);
     }
 
     // C++: Clipper::ClearJoins
     pub unsafe fn clear_joins(&mut self) {
-        for join in self.joins.drain(..) {
-            if !join.is_null() {
-                unsafe {
-                    drop(Box::from_raw(join));
-                }
-            }
-        }
+        self.joins.clear();
     }
 
     // C++: Clipper::AddGhostJoin
     pub fn add_ghost_join(&mut self, op: *mut crate::types::OutPt, off_pt: IntPoint) {
-        let join = Box::into_raw(Box::new(Join {
+        let join = Join {
             out_pt1: op,
             out_pt2: ptr::null_mut(),
             off_pt,
-        }));
+        };
         self.ghost_joins.push(join);
     }
 
     // C++: Clipper::ClearGhostJoins
     pub unsafe fn clear_ghost_joins(&mut self) {
-        for join in self.ghost_joins.drain(..) {
-            if !join.is_null() {
-                unsafe {
-                    drop(Box::from_raw(join));
-                }
-            }
-        }
+        self.ghost_joins.clear();
     }
 
     // C++: Clipper::DisposeIntersectNodes
     pub unsafe fn dispose_intersect_nodes(&mut self) {
-        for node in self.intersect_list.drain(..) {
-            if !node.is_null() {
-                unsafe {
-                    drop(Box::from_raw(node));
-                }
-            }
-        }
+        self.intersect_list.clear();
     }
 
     // C++: Clipper::FixupOutPolyline
@@ -1694,13 +1676,11 @@ impl Clipper {
                     let tmp_pp = (*pp).prev;
                     (*tmp_pp).next = (*pp).next;
                     (*(*pp).next).prev = tmp_pp;
-                    drop(Box::from_raw(pp));
                     pp = tmp_pp;
                 }
             }
 
             if pp == (*pp).prev {
-                dispose_out_pts(&mut pp);
                 (*outrec).pts = ptr::null_mut();
             }
         }
@@ -1716,7 +1696,6 @@ impl Clipper {
 
             loop {
                 if (*pp).prev == pp || (*pp).prev == (*pp).next {
-                    dispose_out_pts(&mut pp);
                     (*outrec).pts = ptr::null_mut();
                     return;
                 }
@@ -1736,11 +1715,9 @@ impl Clipper {
                         )))
                 {
                     last_ok = ptr::null_mut();
-                    let tmp = pp;
                     (*(*pp).prev).next = (*pp).next;
                     (*(*pp).next).prev = (*pp).prev;
                     pp = (*pp).prev;
-                    drop(Box::from_raw(tmp));
                 } else if pp == last_ok {
                     break;
                 } else {
@@ -1892,57 +1869,54 @@ impl Clipper {
     // C++: Clipper::JoinPoints
     pub unsafe fn join_points(
         &mut self,
-        j: *mut Join,
+        j: &mut Join,
         out_rec1: *mut OutRec,
         out_rec2: *mut OutRec,
     ) -> bool {
         unsafe {
-            let op1 = (*j).out_pt1;
+            let op1 = j.out_pt1;
             let mut op1b: *mut OutPt;
-            let op2 = (*j).out_pt2;
+            let op2 = j.out_pt2;
             let mut op2b: *mut OutPt;
 
-            let is_horizontal = (*(*j).out_pt1).pt.y == (*j).off_pt.y;
+            let is_horizontal = (*j.out_pt1).pt.y == j.off_pt.y;
 
-            if is_horizontal
-                && (*j).off_pt == (*(*j).out_pt1).pt
-                && (*j).off_pt == (*(*j).out_pt2).pt
-            {
+            if is_horizontal && j.off_pt == (*j.out_pt1).pt && j.off_pt == (*j.out_pt2).pt {
                 if out_rec1 != out_rec2 {
                     return false;
                 }
-                op1b = (*(*j).out_pt1).next;
-                while op1b != op1 && (*op1b).pt == (*j).off_pt {
+                op1b = (*j.out_pt1).next;
+                while op1b != op1 && (*op1b).pt == j.off_pt {
                     op1b = (*op1b).next;
                 }
-                let reverse1 = (*op1b).pt.y > (*j).off_pt.y;
-                op2b = (*(*j).out_pt2).next;
-                while op2b != op2 && (*op2b).pt == (*j).off_pt {
+                let reverse1 = (*op1b).pt.y > j.off_pt.y;
+                op2b = (*j.out_pt2).next;
+                while op2b != op2 && (*op2b).pt == j.off_pt {
                     op2b = (*op2b).next;
                 }
-                let reverse2 = (*op2b).pt.y > (*j).off_pt.y;
+                let reverse2 = (*op2b).pt.y > j.off_pt.y;
                 if reverse1 == reverse2 {
                     return false;
                 }
                 if reverse1 {
-                    op1b = dup_out_pt(op1, false);
-                    op2b = dup_out_pt(op2, true);
+                    op1b = dup_out_pt_arena(&mut self.base, op1, false);
+                    op2b = dup_out_pt_arena(&mut self.base, op2, true);
                     (*op1).prev = op2;
                     (*op2).next = op1;
                     (*op1b).next = op2b;
                     (*op2b).prev = op1b;
-                    (*j).out_pt1 = op1;
-                    (*j).out_pt2 = op1b;
+                    j.out_pt1 = op1;
+                    j.out_pt2 = op1b;
                     true
                 } else {
-                    op1b = dup_out_pt(op1, true);
-                    op2b = dup_out_pt(op2, false);
+                    op1b = dup_out_pt_arena(&mut self.base, op1, true);
+                    op2b = dup_out_pt_arena(&mut self.base, op2, false);
                     (*op1).next = op2;
                     (*op2).prev = op1;
                     (*op1b).prev = op2b;
                     (*op2b).next = op1b;
-                    (*j).out_pt1 = op1;
-                    (*j).out_pt2 = op1b;
+                    j.out_pt1 = op1;
+                    j.out_pt2 = op1b;
                     true
                 }
             } else if is_horizontal {
@@ -1997,9 +1971,9 @@ impl Clipper {
                 } else {
                     ((*op2b).pt, (*op2b).pt.x > (*op2).pt.x)
                 };
-                (*j).out_pt1 = op1;
-                (*j).out_pt2 = op2;
-                join_horz(op1, op1b, op2, op2b, pt, discard_left_side)
+                j.out_pt1 = op1;
+                j.out_pt2 = op2;
+                join_horz(&mut self.base, op1, op1b, op2, op2b, pt, discard_left_side)
             } else {
                 op1b = (*op1).next;
                 while (*op1b).pt == (*op1).pt && op1b != op1 {
@@ -2009,7 +1983,7 @@ impl Clipper {
                     || !slopes_equal_3_points(
                         (*op1).pt,
                         (*op1b).pt,
-                        (*j).off_pt,
+                        j.off_pt,
                         self.base.use_full_range,
                     );
                 if reverse1 {
@@ -2021,7 +1995,7 @@ impl Clipper {
                         || !slopes_equal_3_points(
                             (*op1).pt,
                             (*op1b).pt,
-                            (*j).off_pt,
+                            j.off_pt,
                             self.base.use_full_range,
                         )
                     {
@@ -2037,7 +2011,7 @@ impl Clipper {
                     || !slopes_equal_3_points(
                         (*op2).pt,
                         (*op2b).pt,
-                        (*j).off_pt,
+                        j.off_pt,
                         self.base.use_full_range,
                     );
                 if reverse2 {
@@ -2049,7 +2023,7 @@ impl Clipper {
                         || !slopes_equal_3_points(
                             (*op2).pt,
                             (*op2b).pt,
-                            (*j).off_pt,
+                            j.off_pt,
                             self.base.use_full_range,
                         )
                     {
@@ -2066,24 +2040,24 @@ impl Clipper {
                 }
 
                 if reverse1 {
-                    op1b = dup_out_pt(op1, false);
-                    op2b = dup_out_pt(op2, true);
+                    op1b = dup_out_pt_arena(&mut self.base, op1, false);
+                    op2b = dup_out_pt_arena(&mut self.base, op2, true);
                     (*op1).prev = op2;
                     (*op2).next = op1;
                     (*op1b).next = op2b;
                     (*op2b).prev = op1b;
-                    (*j).out_pt1 = op1;
-                    (*j).out_pt2 = op1b;
+                    j.out_pt1 = op1;
+                    j.out_pt2 = op1b;
                     true
                 } else {
-                    op1b = dup_out_pt(op1, true);
-                    op2b = dup_out_pt(op2, false);
+                    op1b = dup_out_pt_arena(&mut self.base, op1, true);
+                    op2b = dup_out_pt_arena(&mut self.base, op2, false);
                     (*op1).next = op2;
                     (*op2).prev = op1;
                     (*op1b).prev = op2b;
                     (*op2b).next = op1b;
-                    (*j).out_pt1 = op1;
-                    (*j).out_pt2 = op1b;
+                    j.out_pt1 = op1;
+                    j.out_pt2 = op1b;
                     true
                 }
             }
@@ -2093,11 +2067,10 @@ impl Clipper {
     // C++: Clipper::JoinCommonEdges
     pub unsafe fn join_common_edges(&mut self) {
         unsafe {
-            for i in 0..self.joins.len() {
-                let join = self.joins[i];
-
-                let out_rec1 = self.get_out_rec((*(*join).out_pt1).idx);
-                let mut out_rec2 = self.get_out_rec((*(*join).out_pt2).idx);
+            let mut joins = std::mem::take(&mut self.joins);
+            for join in &mut joins {
+                let out_rec1 = self.get_out_rec((*join.out_pt1).idx);
+                let mut out_rec2 = self.get_out_rec((*join.out_pt2).idx);
 
                 if (*out_rec1).pts.is_null() || (*out_rec2).pts.is_null() {
                     continue;
@@ -2121,10 +2094,10 @@ impl Clipper {
                 }
 
                 if out_rec1 == out_rec2 {
-                    (*out_rec1).pts = (*join).out_pt1;
+                    (*out_rec1).pts = join.out_pt1;
                     (*out_rec1).bottom_pt = ptr::null_mut();
                     out_rec2 = self.base.create_out_rec();
-                    (*out_rec2).pts = (*join).out_pt2;
+                    (*out_rec2).pts = join.out_pt2;
 
                     update_out_pt_idxs(out_rec2);
 
@@ -2180,6 +2153,7 @@ impl Clipper {
                     }
                 }
             }
+            self.joins = joins;
         }
     }
 
@@ -2418,8 +2392,36 @@ unsafe fn dup_out_pt(out_pt: *mut OutPt, insert_after: bool) -> *mut OutPt {
     }
 }
 
+unsafe fn dup_out_pt_arena(
+    base: &mut ClipperBase,
+    out_pt: *mut OutPt,
+    insert_after: bool,
+) -> *mut OutPt {
+    unsafe {
+        let result = base.create_out_pt(OutPt {
+            pt: (*out_pt).pt,
+            idx: (*out_pt).idx,
+            next: ptr::null_mut(),
+            prev: ptr::null_mut(),
+        });
+        if insert_after {
+            (*result).next = (*out_pt).next;
+            (*result).prev = out_pt;
+            (*(*out_pt).next).prev = result;
+            (*out_pt).next = result;
+        } else {
+            (*result).prev = (*out_pt).prev;
+            (*result).next = out_pt;
+            (*(*out_pt).prev).next = result;
+            (*out_pt).prev = result;
+        }
+        result
+    }
+}
+
 // C++: JoinHorz
 unsafe fn join_horz(
+    base: &mut ClipperBase,
     mut op1: *mut OutPt,
     mut op1b: *mut OutPt,
     mut op2: *mut OutPt,
@@ -2452,11 +2454,11 @@ unsafe fn join_horz(
             if discard_left && (*op1).pt.x != pt.x {
                 op1 = (*op1).next;
             }
-            op1b = dup_out_pt(op1, !discard_left);
+            op1b = dup_out_pt_arena(base, op1, !discard_left);
             if (*op1b).pt != pt {
                 op1 = op1b;
                 (*op1).pt = pt;
-                op1b = dup_out_pt(op1, !discard_left);
+                op1b = dup_out_pt_arena(base, op1, !discard_left);
             }
         } else {
             while (*(*op1).next).pt.x >= pt.x
@@ -2468,11 +2470,11 @@ unsafe fn join_horz(
             if !discard_left && (*op1).pt.x != pt.x {
                 op1 = (*op1).next;
             }
-            op1b = dup_out_pt(op1, discard_left);
+            op1b = dup_out_pt_arena(base, op1, discard_left);
             if (*op1b).pt != pt {
                 op1 = op1b;
                 (*op1).pt = pt;
-                op1b = dup_out_pt(op1, discard_left);
+                op1b = dup_out_pt_arena(base, op1, discard_left);
             }
         }
 
@@ -2486,11 +2488,11 @@ unsafe fn join_horz(
             if discard_left && (*op2).pt.x != pt.x {
                 op2 = (*op2).next;
             }
-            op2b = dup_out_pt(op2, !discard_left);
+            op2b = dup_out_pt_arena(base, op2, !discard_left);
             if (*op2b).pt != pt {
                 op2 = op2b;
                 (*op2).pt = pt;
-                op2b = dup_out_pt(op2, !discard_left);
+                op2b = dup_out_pt_arena(base, op2, !discard_left);
             }
         } else {
             while (*(*op2).next).pt.x >= pt.x
@@ -2502,11 +2504,11 @@ unsafe fn join_horz(
             if !discard_left && (*op2).pt.x != pt.x {
                 op2 = (*op2).next;
             }
-            op2b = dup_out_pt(op2, discard_left);
+            op2b = dup_out_pt_arena(base, op2, discard_left);
             if (*op2b).pt != pt {
                 op2 = op2b;
                 (*op2).pt = pt;
-                op2b = dup_out_pt(op2, discard_left);
+                op2b = dup_out_pt_arena(base, op2, discard_left);
             }
         }
 
@@ -2554,10 +2556,9 @@ fn winding_count_for_fill(fill_type: PolyFillType, wind_cnt: i32) -> i32 {
 }
 
 // C++: EdgesAdjacent
-unsafe fn edges_adjacent(inode: *mut IntersectNode) -> bool {
+unsafe fn edges_adjacent(inode: &IntersectNode) -> bool {
     unsafe {
-        (*(*inode).edge1).next_in_sel == (*inode).edge2
-            || (*(*inode).edge1).prev_in_sel == (*inode).edge2
+        (*inode.edge1).next_in_sel == inode.edge2 || (*inode.edge1).prev_in_sel == inode.edge2
     }
 }
 
@@ -2873,13 +2874,11 @@ mod tests {
         let op = Box::into_raw(Box::new(OutPt::default()));
         clipper.add_join(op, ptr::null_mut(), IntPoint::new(1, 2));
         clipper.add_ghost_join(op, IntPoint::new(3, 4));
-        clipper
-            .intersect_list
-            .push(Box::into_raw(Box::new(IntersectNode::default())));
+        clipper.intersect_list.push(IntersectNode::default());
 
         unsafe {
-            assert_eq!((*clipper.joins[0]).off_pt, IntPoint::new(1, 2));
-            assert_eq!((*clipper.ghost_joins[0]).off_pt, IntPoint::new(3, 4));
+            assert_eq!(clipper.joins[0].off_pt, IntPoint::new(1, 2));
+            assert_eq!(clipper.ghost_joins[0].off_pt, IntPoint::new(3, 4));
             clipper.clear_joins();
             clipper.clear_ghost_joins();
             clipper.dispose_intersect_nodes();
@@ -3726,9 +3725,9 @@ mod tests {
 
             assert_eq!(clipper.intersect_list.len(), 1);
             let node = clipper.intersect_list[0];
-            assert_eq!((*node).edge1, e1_ptr);
-            assert_eq!((*node).edge2, e2_ptr);
-            assert_eq!((*node).pt, IntPoint::new(5, 5));
+            assert_eq!(node.edge1, e1_ptr);
+            assert_eq!(node.edge2, e2_ptr);
+            assert_eq!(node.pt, IntPoint::new(5, 5));
             assert!(clipper.sorted_edges.is_null());
         }
     }

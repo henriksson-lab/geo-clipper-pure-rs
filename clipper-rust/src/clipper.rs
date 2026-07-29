@@ -1141,7 +1141,9 @@ impl Clipper {
         unsafe {
             let mut e = self.base.active_edges;
             while !e.is_null() {
-                let mut is_maxima_edge = is_maxima(e, top_y);
+                let e_top = (*e).top;
+                let e_next_in_lml = (*e).next_in_lml;
+                let mut is_maxima_edge = e_top.y == top_y && e_next_in_lml.is_null();
 
                 if is_maxima_edge {
                     let e_max_pair = get_maxima_pair_ex(e);
@@ -1160,7 +1162,8 @@ impl Clipper {
                         e = (*e_prev).next_in_ael;
                     }
                 } else {
-                    if is_intermediate(e, top_y) && is_horizontal(&*(*e).next_in_lml) {
+                    let is_intermediate_edge = e_top.y == top_y && !e_next_in_lml.is_null();
+                    if is_intermediate_edge && is_horizontal(&*e_next_in_lml) {
                         self.base.update_edge_into_ael(&mut e)?;
                         if (*e).out_idx >= 0 {
                             self.add_out_pt(e, (*e).bot);
@@ -1197,7 +1200,8 @@ impl Clipper {
 
             e = self.base.active_edges;
             while !e.is_null() {
-                if is_intermediate(e, top_y) {
+                let e_next_in_lml = (*e).next_in_lml;
+                if (*e).top.y == top_y && !e_next_in_lml.is_null() {
                     let mut op: *mut OutPt = ptr::null_mut();
                     if (*e).out_idx >= 0 {
                         op = self.add_out_pt(e, (*e).top);

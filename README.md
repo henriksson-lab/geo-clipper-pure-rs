@@ -143,17 +143,17 @@ Latest local optimized run, ten iterations per case:
 
 | Case | Parity | Rust ms | C++ ms | Rust/C++ time | Rust RSS KB | C++ RSS KB | Rust/C++ RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `union_dense` | ok | 48.752 | 41.831 | 1.17x | 4800 | 6080 | 0.79x |
-| `touching_rect_grid` | ok | 272.630 | 325.848 | 0.84x | 10560 | 11840 | 0.89x |
-| `intersection_grid` | ok | 66.712 | 116.656 | 0.57x | 5120 | 6472 | 0.79x |
-| `difference_holes` | ok | 25.722 | 31.893 | 0.81x | 3840 | 5120 | 0.75x |
-| `nested_holes` | ok | 31.683 | 36.211 | 0.88x | 4160 | 5440 | 0.76x |
-| `strict_simple_stars` | ok | 108.458 | 122.758 | 0.88x | 5316 | 7040 | 0.76x |
-| `open_paths_clip` | ok | 46.671 | 52.109 | 0.90x | 2560 | 4160 | 0.62x |
-| `large_coord_xor` | ok | 42.224 | 46.763 | 0.90x | 4160 | 5440 | 0.76x |
-| `offset_stars` | ok | 618.942 | 771.768 | 0.80x | 31040 | 32108 | 0.97x |
-| `offset_open_round` | ok | 152.003 | 177.995 | 0.85x | 4480 | 6080 | 0.74x |
-| `polytree_closed_nested` | ok | 16.320 | 20.311 | 0.80x | 2880 | 4480 | 0.64x |
+| `union_dense` | ok | 41.189 | 49.618 | 0.83x | 4800 | 6080 | 0.79x |
+| `touching_rect_grid` | ok | 264.487 | 313.088 | 0.84x | 10560 | 11760 | 0.90x |
+| `intersection_grid` | ok | 65.479 | 87.165 | 0.75x | 5120 | 6472 | 0.79x |
+| `difference_holes` | ok | 32.838 | 32.012 | 1.03x | 3840 | 5440 | 0.71x |
+| `nested_holes` | ok | 33.173 | 38.273 | 0.87x | 4160 | 5440 | 0.76x |
+| `strict_simple_stars` | ok | 107.983 | 120.691 | 0.89x | 5312 | 6720 | 0.79x |
+| `open_paths_clip` | ok | 46.035 | 54.363 | 0.85x | 2560 | 4160 | 0.62x |
+| `large_coord_xor` | ok | 42.787 | 50.929 | 0.84x | 4160 | 5440 | 0.76x |
+| `offset_stars` | ok | 698.736 | 802.252 | 0.87x | 31040 | 32112 | 0.97x |
+| `offset_open_round` | ok | 153.775 | 188.103 | 0.82x | 4480 | 6080 | 0.74x |
+| `polytree_closed_nested` | ok | 15.978 | 20.756 | 0.77x | 2880 | 4480 | 0.64x |
 
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.

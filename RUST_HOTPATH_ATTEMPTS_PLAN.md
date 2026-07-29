@@ -181,3 +181,30 @@ benefit from branch simplification and reducing repeated raw-pointer reads.
 - Attempt 3 retained or documented as rejected.
 - `README.md` benchmark table updated for every retained pass.
 - Each retained pass committed separately.
+
+## Attempt 1 Outcome
+
+Status: retained.
+
+Change:
+
+- Cached `top` and `next_in_lml` state in the first
+  `process_edges_at_top_of_scanbeam` AEL pass.
+- Reused the cached `next_in_lml` pointer for the intermediate-horizontal check.
+- Replaced the second pass's `is_intermediate` helper call with the equivalent
+  local `top.y == top_y && next_in_lml != null` check.
+
+Why retained:
+
+- The change preserves branch order and AEL mutation order.
+- It passed the full validation gate and strict benchmark parity.
+- The final benchmark run improved the `open_paths_clip`, `offset_open_round`,
+  `large_coord_xor`, and `polytree_closed_nested` focus cases versus the prior
+  README table, though local timing remains noisy.
+
+Validation run:
+
+- `cargo fmt --manifest-path clipper-rust/Cargo.toml --check`
+- `cargo clippy --manifest-path clipper-rust/Cargo.toml --all-targets -- -D warnings`
+- `cargo test --manifest-path clipper-rust/Cargo.toml`
+- `bash bench/run_benchmarks.sh 10`

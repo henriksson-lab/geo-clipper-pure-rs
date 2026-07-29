@@ -19,6 +19,7 @@ pub struct Clipper {
     pub joins: Vec<Join>,
     pub ghost_joins: Vec<Join>,
     pub intersect_list: Vec<IntersectNode>,
+    pub intersect_edges_order: Vec<*mut TEdge>,
     pub clip_type: ClipType,
     pub maxima: Vec<CInt>,
     pub sorted_edges: *mut TEdge,
@@ -53,6 +54,7 @@ impl Clipper {
             joins: Vec::new(),
             ghost_joins: Vec::new(),
             intersect_list: Vec::new(),
+            intersect_edges_order: Vec::new(),
             clip_type: ClipType::Intersection,
             maxima: Vec::new(),
             sorted_edges: ptr::null_mut(),
@@ -805,48 +807,43 @@ impl Clipper {
 
         unsafe {
             let mut e = self.base.active_edges;
-            self.sorted_edges = e;
-            let mut active_count = 0usize;
+            self.intersect_edges_order.clear();
             while !e.is_null() {
-                active_count += 1;
-                (*e).prev_in_sel = (*e).prev_in_ael;
-                (*e).next_in_sel = (*e).next_in_ael;
                 (*e).curr.x = top_x(&*e, top_y);
+                self.intersect_edges_order.push(e);
                 e = (*e).next_in_ael;
             }
-            self.intersect_list.reserve(active_count / 2);
+            self.intersect_list
+                .reserve(self.intersect_edges_order.len() / 2);
 
-            loop {
+            let mut unsorted_end = self.intersect_edges_order.len();
+            while unsorted_end > 1 {
                 let mut is_modified = false;
-                e = self.sorted_edges;
-                while !(*e).next_in_sel.is_null() {
-                    let e_next = (*e).next_in_sel;
-                    let mut pt = IntPoint::default();
-                    if (*e).curr.x > (*e_next).curr.x {
-                        intersect_point(&*e, &*e_next, &mut pt);
+                let mut i = 0usize;
+                while i + 1 < unsorted_end {
+                    let edge = *self.intersect_edges_order.get_unchecked(i);
+                    let edge_next = *self.intersect_edges_order.get_unchecked(i + 1);
+                    if (*edge).curr.x > (*edge_next).curr.x {
+                        let mut pt = IntPoint::default();
+                        intersect_point(&*edge, &*edge_next, &mut pt);
                         if pt.y < top_y {
-                            pt = IntPoint::new(top_x(&*e, top_y), top_y);
+                            pt = IntPoint::new(top_x(&*edge, top_y), top_y);
                         }
                         self.intersect_list.push(IntersectNode {
-                            edge1: e,
-                            edge2: e_next,
+                            edge1: edge,
+                            edge2: edge_next,
                             pt,
                         });
 
-                        self.swap_positions_in_sel(e, e_next);
+                        self.intersect_edges_order.swap(i, i + 1);
                         is_modified = true;
-                    } else {
-                        e = e_next;
                     }
-                }
-                if !(*e).prev_in_sel.is_null() {
-                    (*(*e).prev_in_sel).next_in_sel = ptr::null_mut();
-                } else {
-                    break;
+                    i += 1;
                 }
                 if !is_modified {
                     break;
                 }
+                unsorted_end -= 1;
             }
             self.sorted_edges = ptr::null_mut();
         }

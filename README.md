@@ -35,20 +35,21 @@ cd clipper-rust
 cargo test
 ```
 
-Main modules:
+The public API is exposed from the crate root. The translated implementation modules
+are private so raw pointer internals and C++ support structs do not become part of
+the crate interface.
 
-- `types`: Clipper enums, point/path types, and internal structs
-- `helpers`: free geometry helpers such as area, orientation, point-in-polygon,
-  simplification, and Minkowski helpers
-- `clipper_base`: translated `ClipperBase`
-- `clipper`: translated boolean clipping operations
-- `clipper_offset`: translated offsetting operations
+Main public types and functions:
+
+- `Clipper`, `ClipperOptions`, and `ClipperOffset`
+- `IntPoint`, `IntRect`, `Path`, `Paths`, and Clipper enums
+- helpers such as `area`, `orientation`, `point_in_polygon`, simplification,
+  cleaning, Minkowski operations, and `PolyTree` path extraction
 
 Example:
 
 ```rust
-use clipper_rust::clipper::Clipper;
-use clipper_rust::types::{ClipType, IntPoint, PolyFillType, PolyType};
+use clipper_rust::{ClipType, Clipper, IntPoint, PolyFillType, PolyType};
 
 let a = vec![
     IntPoint::new(0, 0),
@@ -67,10 +68,13 @@ let mut clipper = Clipper::new();
 clipper.add_path(&a, PolyType::Subject, true)?;
 clipper.add_path(&b, PolyType::Subject, true)?;
 
-let mut solution = Vec::new();
-clipper.execute(ClipType::Union, &mut solution, PolyFillType::NonZero)?;
+let solution = clipper.execute(ClipType::Union, PolyFillType::NonZero)?;
 # Ok::<(), clipper_rust::ClipperError>(())
 ```
+
+Inputs are accepted as slices where possible, and normal execution methods return
+owned `Paths` or `PolyTree` values. `_into` variants are available when callers want
+to reuse output allocations.
 
 ## Validation
 
@@ -123,6 +127,9 @@ Run all benchmark cases:
 bash bench/run_benchmarks.sh
 ```
 
+The benchmark CLI is behind the default-off `bench-bin` feature; the script enables
+it when building `src/bin/bench.rs`.
+
 Run with more iterations per case:
 
 ```bash
@@ -141,18 +148,17 @@ Latest local optimized run, ten iterations per case:
 
 | Case | Parity | Rust ms | C++ ms | Rust/C++ time | Rust RSS KB | C++ RSS KB | Rust/C++ RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `union_dense` | ok | 49.724 | 53.480 | 0.93x | 4800 | 6080 | 0.79x |
-| `touching_rect_grid` | ok | 264.559 | 309.170 | 0.86x | 10560 | 11840 | 0.89x |
-| `intersection_grid` | ok | 65.743 | 90.989 | 0.72x | 5120 | 6280 | 0.82x |
-| `difference_holes` | ok | 30.944 | 33.481 | 0.92x | 3840 | 5440 | 0.71x |
-| `nested_holes` | ok | 31.224 | 24.572 | 1.27x | 4160 | 5760 | 0.72x |
-| `strict_simple_stars` | ok | 108.279 | 122.269 | 0.89x | 5312 | 7040 | 0.75x |
-| `open_paths_clip` | ok | 50.236 | 50.605 | 0.99x | 2560 | 4160 | 0.62x |
-| `large_coord_xor` | ok | 40.484 | 49.660 | 0.82x | 4160 | 5440 | 0.76x |
-| `offset_stars` | ok | 650.295 | 750.216 | 0.87x | 30720 | 32076 | 0.96x |
-| `offset_open_round` | ok | 150.081 | 179.203 | 0.84x | 4480 | 6080 | 0.74x |
-| `polytree_closed_nested` | ok | 17.139 | 26.048 | 0.66x | 2880 | 4160 | 0.69x |
+| `union_dense` | ok | 46.125 | 53.963 | 0.85x | 4800 | 6400 | 0.75x |
+| `touching_rect_grid` | ok | 275.236 | 312.947 | 0.88x | 10560 | 11840 | 0.89x |
+| `intersection_grid` | ok | 68.139 | 84.233 | 0.81x | 5120 | 6468 | 0.79x |
+| `difference_holes` | ok | 28.038 | 35.449 | 0.79x | 3840 | 5440 | 0.71x |
+| `nested_holes` | ok | 32.897 | 34.416 | 0.96x | 4160 | 5440 | 0.76x |
+| `strict_simple_stars` | ok | 105.871 | 119.211 | 0.89x | 5316 | 7040 | 0.76x |
+| `open_paths_clip` | ok | 47.700 | 51.367 | 0.93x | 2560 | 3840 | 0.67x |
+| `large_coord_xor` | ok | 40.880 | 44.111 | 0.93x | 4160 | 5440 | 0.76x |
+| `offset_stars` | ok | 588.735 | 737.871 | 0.80x | 31040 | 31948 | 0.97x |
+| `offset_open_round` | ok | 157.187 | 181.693 | 0.87x | 4480 | 6080 | 0.74x |
+| `polytree_closed_nested` | ok | 16.438 | 18.160 | 0.91x | 2880 | 4160 | 0.69x |
 
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.
-

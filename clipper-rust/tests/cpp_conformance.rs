@@ -2,11 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use clipper_rust::clipper::Clipper;
-use clipper_rust::clipper_offset::ClipperOffset;
-use clipper_rust::helpers::area;
-use clipper_rust::types::{
-    ClipType, EndType, IntPoint, JoinType, Path as ClipperPath, Paths, PolyFillType, PolyType,
+use clipper_rust::{
+    ClipType, Clipper, ClipperOffset, EndType, IntPoint, JoinType, Path as ClipperPath, Paths,
+    PolyFillType, PolyType, area,
 };
 
 fn total_abs_area(paths: &Paths) -> f64 {
@@ -118,7 +116,7 @@ fn rust_matches_cpp_for_basic_union_and_offset_cases() {
     let mut rust_union = Clipper::new();
     rust_union
         .add_path(
-            &vec![
+            &[
                 IntPoint::new(0, 0),
                 IntPoint::new(10, 0),
                 IntPoint::new(10, 10),
@@ -130,7 +128,7 @@ fn rust_matches_cpp_for_basic_union_and_offset_cases() {
         .unwrap();
     rust_union
         .add_path(
-            &vec![
+            &[
                 IntPoint::new(5, 5),
                 IntPoint::new(15, 5),
                 IntPoint::new(15, 15),
@@ -141,15 +139,13 @@ fn rust_matches_cpp_for_basic_union_and_offset_cases() {
         )
         .unwrap();
     let mut rust_union_solution = Vec::new();
-    assert!(
-        rust_union
-            .execute(
-                ClipType::Union,
-                &mut rust_union_solution,
-                PolyFillType::NonZero
-            )
-            .unwrap()
-    );
+    rust_union
+        .execute_into(
+            ClipType::Union,
+            &mut rust_union_solution,
+            PolyFillType::NonZero,
+        )
+        .unwrap();
 
     let mut rust_offset = ClipperOffset::new(2.0, 0.25);
     let square: ClipperPath = vec![
@@ -158,20 +154,12 @@ fn rust_matches_cpp_for_basic_union_and_offset_cases() {
         IntPoint::new(10, 10),
         IntPoint::new(0, 10),
     ];
-    unsafe {
-        rust_offset.add_path(&square, JoinType::Miter, EndType::ClosedPolygon);
-    }
-    let mut rust_offset_solution = Vec::new();
-    rust_offset.execute(&mut rust_offset_solution, 1.0).unwrap();
+    rust_offset.add_path(&square, JoinType::Miter, EndType::ClosedPolygon);
+    let rust_offset_solution = rust_offset.execute(1.0).unwrap();
 
     let mut rust_offset_negative = ClipperOffset::new(2.0, 0.25);
-    unsafe {
-        rust_offset_negative.add_path(&square, JoinType::Miter, EndType::ClosedPolygon);
-    }
-    let mut rust_offset_negative_solution = Vec::new();
-    rust_offset_negative
-        .execute(&mut rust_offset_negative_solution, -1.0)
-        .unwrap();
+    rust_offset_negative.add_path(&square, JoinType::Miter, EndType::ClosedPolygon);
+    let rust_offset_negative_solution = rust_offset_negative.execute(-1.0).unwrap();
 
     assert_eq!(rust_union_solution.len(), cpp_union_count);
     assert_eq!(total_abs_area(&rust_union_solution), cpp_union_area);

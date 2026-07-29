@@ -9,31 +9,38 @@ use crate::helpers::{
     slopes_equal_4_points, swap_poly_indexes, swap_sides, top_x,
 };
 use crate::types::{
-    CInt, ClipType, Direction, EdgeSide, InitOptions, IntPoint, IntersectNode, Join, OutPt, OutRec,
-    Path, Paths, PolyFillType, PolyNode, PolyTree, PolyType, SKIP, TEdge, UNASSIGNED,
+    CInt, ClipType, Direction, EdgeSide, IntPoint, IntersectNode, Join, OutPt, OutRec, Path, Paths,
+    PolyFillType, PolyNode, PolyTree, PolyType, SKIP, TEdge, UNASSIGNED,
 };
 
 #[derive(Debug)]
 pub struct Clipper {
-    pub base: ClipperBase,
-    pub joins: Vec<Join>,
-    pub ghost_joins: Vec<Join>,
-    pub intersect_list: Vec<IntersectNode>,
-    pub intersect_edges_order: Vec<*mut TEdge>,
-    pub clip_type: ClipType,
-    pub maxima: Vec<CInt>,
-    pub sorted_edges: *mut TEdge,
-    pub execute_locked: bool,
-    pub clip_fill_type: PolyFillType,
-    pub subj_fill_type: PolyFillType,
-    pub reverse_output: bool,
-    pub using_poly_tree: bool,
-    pub strict_simple: bool,
+    pub(crate) base: ClipperBase,
+    pub(crate) joins: Vec<Join>,
+    pub(crate) ghost_joins: Vec<Join>,
+    pub(crate) intersect_list: Vec<IntersectNode>,
+    pub(crate) intersect_edges_order: Vec<*mut TEdge>,
+    pub(crate) clip_type: ClipType,
+    pub(crate) maxima: Vec<CInt>,
+    pub(crate) sorted_edges: *mut TEdge,
+    pub(crate) execute_locked: bool,
+    pub(crate) clip_fill_type: PolyFillType,
+    pub(crate) subj_fill_type: PolyFillType,
+    pub(crate) reverse_output: bool,
+    pub(crate) using_poly_tree: bool,
+    pub(crate) strict_simple: bool,
+}
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub struct ClipperOptions {
+    pub reverse_solution: bool,
+    pub strictly_simple: bool,
+    pub preserve_collinear: bool,
 }
 
 impl Default for Clipper {
     fn default() -> Self {
-        Self::with_init_options(0)
+        Self::with_options(ClipperOptions::default())
     }
 }
 
@@ -42,11 +49,10 @@ impl Clipper {
         Self::default()
     }
 
-    // C++: Clipper::Clipper(int initOptions)
-    pub fn with_init_options(init_options: i32) -> Self {
+    pub fn with_options(options: ClipperOptions) -> Self {
         let mut base = ClipperBase::new();
         base.use_full_range = false;
-        base.preserve_collinear = (init_options & InitOptions::PreserveCollinear as i32) != 0;
+        base.preserve_collinear = options.preserve_collinear;
         base.has_open_paths = false;
 
         Self {
@@ -61,9 +67,9 @@ impl Clipper {
             execute_locked: false,
             clip_fill_type: PolyFillType::EvenOdd,
             subj_fill_type: PolyFillType::EvenOdd,
-            reverse_output: (init_options & InitOptions::ReverseSolution as i32) != 0,
+            reverse_output: options.reverse_solution,
             using_poly_tree: false,
-            strict_simple: (init_options & InitOptions::StrictlySimple as i32) != 0,
+            strict_simple: options.strictly_simple,
         }
     }
 
@@ -83,39 +89,67 @@ impl Clipper {
         self.strict_simple = value;
     }
 
-    pub fn add_path(&mut self, pg: &Path, poly_type: PolyType, closed: bool) -> Result<bool> {
+    pub fn preserve_collinear(&self) -> bool {
+        self.base.preserve_collinear()
+    }
+
+    pub fn set_preserve_collinear(&mut self, value: bool) {
+        self.base.set_preserve_collinear(value);
+    }
+
+    pub fn add_path(&mut self, pg: &[IntPoint], poly_type: PolyType, closed: bool) -> Result<bool> {
         self.base.add_path(pg, poly_type, closed)
     }
 
-    pub fn add_paths(&mut self, ppg: &Paths, poly_type: PolyType, closed: bool) -> Result<bool> {
+    pub fn add_paths(&mut self, ppg: &[Path], poly_type: PolyType, closed: bool) -> Result<bool> {
         self.base.add_paths(ppg, poly_type, closed)
     }
 
-    // C++: ClipperBase::GetBounds exposed through Clipper
-    pub unsafe fn get_bounds(&self) -> crate::types::IntRect {
+    pub fn bounds(&self) -> crate::types::IntRect {
         unsafe { self.base.get_bounds() }
     }
 
-    // C++: Clipper::Execute(ClipType, Paths&, PolyFillType)
-    pub fn execute(
+    pub fn execute(&mut self, clip_type: ClipType, fill_type: PolyFillType) -> Result<Paths> {
+        self.execute_with_fill_types(clip_type, fill_type, fill_type)
+    }
+
+    pub fn execute_with_fill_types(
+        &mut self,
+        clip_type: ClipType,
+        subj_fill_type: PolyFillType,
+        clip_fill_type: PolyFillType,
+    ) -> Result<Paths> {
+        let mut solution = Vec::new();
+        self.execute_into_with_fill_types(
+            clip_type,
+            &mut solution,
+            subj_fill_type,
+            clip_fill_type,
+        )?;
+        Ok(solution)
+    }
+
+    pub fn execute_into(
         &mut self,
         clip_type: ClipType,
         solution: &mut Paths,
         fill_type: PolyFillType,
-    ) -> Result<bool> {
-        self.execute_with_fill_types(clip_type, solution, fill_type, fill_type)
+    ) -> Result<()> {
+        self.execute_into_with_fill_types(clip_type, solution, fill_type, fill_type)
     }
 
     // C++: Clipper::Execute(ClipType, Paths&, PolyFillType, PolyFillType)
-    pub fn execute_with_fill_types(
+    pub fn execute_into_with_fill_types(
         &mut self,
         clip_type: ClipType,
         solution: &mut Paths,
         subj_fill_type: PolyFillType,
         clip_fill_type: PolyFillType,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         if self.execute_locked {
-            return Ok(false);
+            return Err(ClipperError::new(
+                "Clipper execution is already in progress.",
+            ));
         }
         if self.base.has_open_paths {
             return Err(ClipperError::new(
@@ -140,29 +174,58 @@ impl Clipper {
             self.base.dispose_all_out_recs();
         }
         self.execute_locked = false;
-        result
+        if result? {
+            Ok(())
+        } else {
+            Err(ClipperError::new("failed to process intersections"))
+        }
     }
 
-    // C++: Clipper::Execute(ClipType, PolyTree&, PolyFillType)
     pub fn execute_polytree(
+        &mut self,
+        clip_type: ClipType,
+        fill_type: PolyFillType,
+    ) -> Result<PolyTree> {
+        self.execute_polytree_with_fill_types(clip_type, fill_type, fill_type)
+    }
+
+    pub fn execute_polytree_with_fill_types(
+        &mut self,
+        clip_type: ClipType,
+        subj_fill_type: PolyFillType,
+        clip_fill_type: PolyFillType,
+    ) -> Result<PolyTree> {
+        let mut polytree = PolyTree::new();
+        self.execute_polytree_into_with_fill_types(
+            clip_type,
+            &mut polytree,
+            subj_fill_type,
+            clip_fill_type,
+        )?;
+        Ok(polytree)
+    }
+
+    pub fn execute_polytree_into(
         &mut self,
         clip_type: ClipType,
         polytree: &mut PolyTree,
         fill_type: PolyFillType,
-    ) -> Result<bool> {
-        self.execute_polytree_with_fill_types(clip_type, polytree, fill_type, fill_type)
+    ) -> Result<()> {
+        self.execute_polytree_into_with_fill_types(clip_type, polytree, fill_type, fill_type)
     }
 
     // C++: Clipper::Execute(ClipType, PolyTree&, PolyFillType, PolyFillType)
-    pub fn execute_polytree_with_fill_types(
+    pub fn execute_polytree_into_with_fill_types(
         &mut self,
         clip_type: ClipType,
         polytree: &mut PolyTree,
         subj_fill_type: PolyFillType,
         clip_fill_type: PolyFillType,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         if self.execute_locked {
-            return Ok(false);
+            return Err(ClipperError::new(
+                "Clipper execution is already in progress.",
+            ));
         }
 
         self.execute_locked = true;
@@ -181,11 +244,15 @@ impl Clipper {
             self.base.dispose_all_out_recs();
         }
         self.execute_locked = false;
-        result
+        if result? {
+            Ok(())
+        } else {
+            Err(ClipperError::new("failed to process intersections"))
+        }
     }
 
     // C++: Clipper::ExecuteInternal
-    pub unsafe fn execute_internal(&mut self) -> Result<bool> {
+    pub(crate) unsafe fn execute_internal(&mut self) -> Result<bool> {
         let result: Result<bool> = (|| unsafe {
             self.base.reset();
             self.maxima.clear();
@@ -256,7 +323,7 @@ impl Clipper {
     }
 
     // C++: Clipper::FixHoleLinkage
-    pub unsafe fn fix_hole_linkage(&mut self, outrec: *mut crate::types::OutRec) {
+    pub(crate) unsafe fn fix_hole_linkage(&mut self, outrec: *mut crate::types::OutRec) {
         unsafe {
             if (*outrec).first_left.is_null()
                 || ((*outrec).is_hole != (*(*outrec).first_left).is_hole
@@ -275,7 +342,7 @@ impl Clipper {
     }
 
     // C++: Clipper::AddLocalMinPoly
-    pub unsafe fn add_local_min_poly(
+    pub(crate) unsafe fn add_local_min_poly(
         &mut self,
         e1: *mut TEdge,
         e2: *mut TEdge,
@@ -334,7 +401,12 @@ impl Clipper {
     }
 
     // C++: Clipper::AddLocalMaxPoly
-    pub unsafe fn add_local_max_poly(&mut self, e1: *mut TEdge, e2: *mut TEdge, pt: IntPoint) {
+    pub(crate) unsafe fn add_local_max_poly(
+        &mut self,
+        e1: *mut TEdge,
+        e2: *mut TEdge,
+        pt: IntPoint,
+    ) {
         unsafe {
             self.add_out_pt(e1, pt);
             if (*e2).wind_delta == 0 {
@@ -352,7 +424,7 @@ impl Clipper {
     }
 
     // C++: Clipper::SetHoleState
-    pub unsafe fn set_hole_state(&mut self, e: *mut TEdge, outrec: *mut OutRec) {
+    pub(crate) unsafe fn set_hole_state(&mut self, e: *mut TEdge, outrec: *mut OutRec) {
         unsafe {
             let mut e2 = (*e).prev_in_ael;
             let mut e_tmp: *mut TEdge = ptr::null_mut();
@@ -377,7 +449,7 @@ impl Clipper {
     }
 
     // C++: Clipper::GetOutRec
-    pub unsafe fn get_out_rec(&self, idx: i32) -> *mut OutRec {
+    pub(crate) unsafe fn get_out_rec(&self, idx: i32) -> *mut OutRec {
         unsafe {
             let mut outrec = self.base.poly_outs[idx as usize];
             while outrec != self.base.poly_outs[(*outrec).idx as usize] {
@@ -388,7 +460,7 @@ impl Clipper {
     }
 
     // C++: Clipper::AppendPolygon
-    pub unsafe fn append_polygon(&mut self, e1: *mut TEdge, e2: *mut TEdge) {
+    pub(crate) unsafe fn append_polygon(&mut self, e1: *mut TEdge, e2: *mut TEdge) {
         unsafe {
             let out_rec1 = self.base.poly_outs[(*e1).out_idx as usize];
             let out_rec2 = self.base.poly_outs[(*e2).out_idx as usize];
@@ -466,7 +538,7 @@ impl Clipper {
     }
 
     // C++: Clipper::AddOutPt
-    pub unsafe fn add_out_pt(&mut self, e: *mut TEdge, pt: IntPoint) -> *mut OutPt {
+    pub(crate) unsafe fn add_out_pt(&mut self, e: *mut TEdge, pt: IntPoint) -> *mut OutPt {
         unsafe {
             if (*e).out_idx < 0 {
                 let out_rec = self.base.create_out_rec();
@@ -513,7 +585,7 @@ impl Clipper {
     }
 
     // C++: Clipper::GetLastOutPt
-    pub unsafe fn get_last_out_pt(&self, e: *mut TEdge) -> *mut OutPt {
+    pub(crate) unsafe fn get_last_out_pt(&self, e: *mut TEdge) -> *mut OutPt {
         unsafe {
             let out_rec = self.base.poly_outs[(*e).out_idx as usize];
             if (*e).side == EdgeSide::Left {
@@ -525,7 +597,7 @@ impl Clipper {
     }
 
     // C++: Clipper::InsertLocalMinimaIntoAEL
-    pub unsafe fn insert_local_minima_into_ael(&mut self, bot_y: CInt) -> Result<()> {
+    pub(crate) unsafe fn insert_local_minima_into_ael(&mut self, bot_y: CInt) -> Result<()> {
         while let Some(lm) = self.base.pop_local_minima(bot_y) {
             unsafe {
                 let lb = lm.left_bound;
@@ -641,7 +713,7 @@ impl Clipper {
     }
 
     // C++: Clipper::AddEdgeToSEL
-    pub unsafe fn add_edge_to_sel(&mut self, edge: *mut TEdge) {
+    pub(crate) unsafe fn add_edge_to_sel(&mut self, edge: *mut TEdge) {
         unsafe {
             if self.sorted_edges.is_null() {
                 self.sorted_edges = edge;
@@ -657,7 +729,7 @@ impl Clipper {
     }
 
     // C++: Clipper::PopEdgeFromSEL
-    pub unsafe fn pop_edge_from_sel(&mut self) -> Option<*mut TEdge> {
+    pub(crate) unsafe fn pop_edge_from_sel(&mut self) -> Option<*mut TEdge> {
         if self.sorted_edges.is_null() {
             return None;
         }
@@ -669,7 +741,7 @@ impl Clipper {
     }
 
     // C++: Clipper::CopyAELToSEL
-    pub unsafe fn copy_ael_to_sel(&mut self) {
+    pub(crate) unsafe fn copy_ael_to_sel(&mut self) {
         unsafe {
             let mut e = self.base.active_edges;
             self.sorted_edges = e;
@@ -682,7 +754,7 @@ impl Clipper {
     }
 
     // C++: Clipper::DeleteFromSEL
-    pub unsafe fn delete_from_sel(&mut self, e: *mut TEdge) {
+    pub(crate) unsafe fn delete_from_sel(&mut self, e: *mut TEdge) {
         unsafe {
             let sel_prev = (*e).prev_in_sel;
             let sel_next = (*e).next_in_sel;
@@ -703,7 +775,7 @@ impl Clipper {
     }
 
     // C++: Clipper::SwapPositionsInSEL
-    pub unsafe fn swap_positions_in_sel(&mut self, edge1: *mut TEdge, edge2: *mut TEdge) {
+    pub(crate) unsafe fn swap_positions_in_sel(&mut self, edge1: *mut TEdge, edge2: *mut TEdge) {
         unsafe {
             if (*edge1).next_in_sel.is_null() && (*edge1).prev_in_sel.is_null() {
                 return;
@@ -768,7 +840,11 @@ impl Clipper {
     }
 
     // C++: Clipper::InsertEdgeIntoAEL
-    pub unsafe fn insert_edge_into_ael(&mut self, edge: *mut TEdge, mut start_edge: *mut TEdge) {
+    pub(crate) unsafe fn insert_edge_into_ael(
+        &mut self,
+        edge: *mut TEdge,
+        mut start_edge: *mut TEdge,
+    ) {
         unsafe {
             if self.base.active_edges.is_null() {
                 (*edge).prev_in_ael = ptr::null_mut();
@@ -800,7 +876,7 @@ impl Clipper {
     }
 
     // C++: Clipper::BuildIntersectList
-    pub unsafe fn build_intersect_list(&mut self, top_y: CInt) {
+    pub(crate) unsafe fn build_intersect_list(&mut self, top_y: CInt) {
         if self.base.active_edges.is_null() {
             return;
         }
@@ -850,7 +926,7 @@ impl Clipper {
     }
 
     // C++: Clipper::ProcessIntersections
-    pub unsafe fn process_intersections(&mut self, top_y: CInt) -> Result<bool> {
+    pub(crate) unsafe fn process_intersections(&mut self, top_y: CInt) -> Result<bool> {
         if self.base.active_edges.is_null() {
             return Ok(true);
         }
@@ -872,7 +948,7 @@ impl Clipper {
     }
 
     // C++: Clipper::ProcessHorizontals
-    pub unsafe fn process_horizontals(&mut self) -> Result<()> {
+    pub(crate) unsafe fn process_horizontals(&mut self) -> Result<()> {
         while let Some(horz_edge) = unsafe { self.pop_edge_from_sel() } {
             unsafe {
                 self.process_horizontal(horz_edge)?;
@@ -882,7 +958,7 @@ impl Clipper {
     }
 
     // C++: Clipper::ProcessHorizontal
-    pub unsafe fn process_horizontal(&mut self, horz_edge: *mut TEdge) -> Result<()> {
+    pub(crate) unsafe fn process_horizontal(&mut self, horz_edge: *mut TEdge) -> Result<()> {
         unsafe {
             let mut horz_edge = horz_edge;
             let mut is_open = (*horz_edge).wind_delta == 0;
@@ -1093,7 +1169,7 @@ impl Clipper {
     }
 
     // C++: Clipper::DoMaxima
-    pub unsafe fn do_maxima(&mut self, e: *mut TEdge) -> Result<()> {
+    pub(crate) unsafe fn do_maxima(&mut self, e: *mut TEdge) -> Result<()> {
         unsafe {
             let e_max_pair = get_maxima_pair_ex(e);
             if e_max_pair.is_null() {
@@ -1137,7 +1213,7 @@ impl Clipper {
     }
 
     // C++: Clipper::ProcessEdgesAtTopOfScanbeam
-    pub unsafe fn process_edges_at_top_of_scanbeam(&mut self, top_y: CInt) -> Result<()> {
+    pub(crate) unsafe fn process_edges_at_top_of_scanbeam(&mut self, top_y: CInt) -> Result<()> {
         unsafe {
             let mut e = self.base.active_edges;
             while !e.is_null() {
@@ -1255,7 +1331,7 @@ impl Clipper {
     }
 
     // C++: Clipper::ProcessIntersectList
-    pub unsafe fn process_intersect_list(&mut self) {
+    pub(crate) unsafe fn process_intersect_list(&mut self) {
         let cnt = self.intersect_list.len();
         for i in 0..cnt {
             let node = unsafe { *self.intersect_list.get_unchecked(i) };
@@ -1268,7 +1344,7 @@ impl Clipper {
     }
 
     // C++: Clipper::FixupIntersectionOrder
-    pub unsafe fn fixup_intersection_order(&mut self) -> bool {
+    pub(crate) unsafe fn fixup_intersection_order(&mut self) -> bool {
         unsafe {
             self.copy_ael_to_sel();
             sort_intersect_list_by_descending_y(&mut self.intersect_list);
@@ -1293,7 +1369,7 @@ impl Clipper {
     }
 
     // C++: Clipper::IntersectEdges
-    pub unsafe fn intersect_edges(&mut self, e1: *mut TEdge, e2: *mut TEdge, pt: IntPoint) {
+    pub(crate) unsafe fn intersect_edges(&mut self, e1: *mut TEdge, e2: *mut TEdge, pt: IntPoint) {
         unsafe {
             let e1_contributing = (*e1).out_idx >= 0;
             let e2_contributing = (*e2).out_idx >= 0;
@@ -1447,7 +1523,7 @@ impl Clipper {
     }
 
     // C++: Clipper::SetWindingCount
-    pub unsafe fn set_winding_count(&mut self, edge: *mut TEdge) {
+    pub(crate) unsafe fn set_winding_count(&mut self, edge: *mut TEdge) {
         unsafe {
             let edge_poly_typ = (*edge).poly_typ;
             let edge_wind_delta = (*edge).wind_delta;
@@ -1536,7 +1612,7 @@ impl Clipper {
     }
 
     // C++: Clipper::IsEvenOddFillType
-    pub fn is_even_odd_fill_type(&self, edge: &TEdge) -> bool {
+    pub(crate) fn is_even_odd_fill_type(&self, edge: &TEdge) -> bool {
         if edge.poly_typ == PolyType::Subject {
             self.subj_fill_type == PolyFillType::EvenOdd
         } else {
@@ -1545,7 +1621,7 @@ impl Clipper {
     }
 
     // C++: Clipper::IsEvenOddAltFillType
-    pub fn is_even_odd_alt_fill_type(&self, edge: &TEdge) -> bool {
+    pub(crate) fn is_even_odd_alt_fill_type(&self, edge: &TEdge) -> bool {
         if edge.poly_typ == PolyType::Subject {
             self.clip_fill_type == PolyFillType::EvenOdd
         } else {
@@ -1554,7 +1630,7 @@ impl Clipper {
     }
 
     // C++: Clipper::IsContributing
-    pub fn is_contributing(&self, edge: &TEdge) -> bool {
+    pub(crate) fn is_contributing(&self, edge: &TEdge) -> bool {
         let (pft, pft2) = if edge.poly_typ == PolyType::Subject {
             (self.subj_fill_type, self.clip_fill_type)
         } else {
@@ -1625,7 +1701,7 @@ impl Clipper {
     }
 
     // C++: Clipper::AddJoin
-    pub fn add_join(
+    pub(crate) fn add_join(
         &mut self,
         op1: *mut crate::types::OutPt,
         op2: *mut crate::types::OutPt,
@@ -1640,12 +1716,12 @@ impl Clipper {
     }
 
     // C++: Clipper::ClearJoins
-    pub unsafe fn clear_joins(&mut self) {
+    pub(crate) unsafe fn clear_joins(&mut self) {
         self.joins.clear();
     }
 
     // C++: Clipper::AddGhostJoin
-    pub fn add_ghost_join(&mut self, op: *mut crate::types::OutPt, off_pt: IntPoint) {
+    pub(crate) fn add_ghost_join(&mut self, op: *mut crate::types::OutPt, off_pt: IntPoint) {
         let join = Join {
             out_pt1: op,
             out_pt2: ptr::null_mut(),
@@ -1655,17 +1731,17 @@ impl Clipper {
     }
 
     // C++: Clipper::ClearGhostJoins
-    pub unsafe fn clear_ghost_joins(&mut self) {
+    pub(crate) unsafe fn clear_ghost_joins(&mut self) {
         self.ghost_joins.clear();
     }
 
     // C++: Clipper::DisposeIntersectNodes
-    pub unsafe fn dispose_intersect_nodes(&mut self) {
+    pub(crate) unsafe fn dispose_intersect_nodes(&mut self) {
         self.intersect_list.clear();
     }
 
     // C++: Clipper::FixupOutPolyline
-    pub unsafe fn fixup_out_polyline(&mut self, outrec: *mut OutRec) {
+    pub(crate) unsafe fn fixup_out_polyline(&mut self, outrec: *mut OutRec) {
         unsafe {
             let mut pp = (*outrec).pts;
             let mut last_pp = (*pp).prev;
@@ -1689,7 +1765,7 @@ impl Clipper {
     }
 
     // C++: Clipper::FixupOutPolygon
-    pub unsafe fn fixup_out_polygon(&mut self, outrec: *mut OutRec) {
+    pub(crate) unsafe fn fixup_out_polygon(&mut self, outrec: *mut OutRec) {
         unsafe {
             let mut last_ok: *mut OutPt = ptr::null_mut();
             (*outrec).bottom_pt = ptr::null_mut();
@@ -1734,7 +1810,7 @@ impl Clipper {
     }
 
     // C++: Clipper::BuildResult
-    pub unsafe fn build_result(&self, polys: &mut Paths) {
+    pub(crate) unsafe fn build_result(&self, polys: &mut Paths) {
         unsafe {
             polys.reserve(self.base.poly_outs.len());
             for outrec in &self.base.poly_outs {
@@ -1757,7 +1833,7 @@ impl Clipper {
     }
 
     // C++: Clipper::BuildResult2
-    pub unsafe fn build_result2(&mut self, polytree: &mut PolyTree) {
+    pub(crate) unsafe fn build_result2(&mut self, polytree: &mut PolyTree) {
         unsafe {
             polytree.clear();
             polytree.all_nodes.reserve(self.base.poly_outs.len());
@@ -1803,7 +1879,7 @@ impl Clipper {
     }
 
     // C++: Clipper::FixupFirstLefts1
-    pub unsafe fn fixup_first_lefts1(
+    pub(crate) unsafe fn fixup_first_lefts1(
         &mut self,
         old_out_rec: *mut OutRec,
         new_out_rec: *mut OutRec,
@@ -1822,7 +1898,7 @@ impl Clipper {
     }
 
     // C++: Clipper::FixupFirstLefts2
-    pub unsafe fn fixup_first_lefts2(
+    pub(crate) unsafe fn fixup_first_lefts2(
         &mut self,
         inner_out_rec: *mut OutRec,
         outer_out_rec: *mut OutRec,
@@ -1853,7 +1929,7 @@ impl Clipper {
     }
 
     // C++: Clipper::FixupFirstLefts3
-    pub unsafe fn fixup_first_lefts3(
+    pub(crate) unsafe fn fixup_first_lefts3(
         &mut self,
         old_out_rec: *mut OutRec,
         new_out_rec: *mut OutRec,
@@ -1869,7 +1945,7 @@ impl Clipper {
     }
 
     // C++: Clipper::JoinPoints
-    pub unsafe fn join_points(
+    pub(crate) unsafe fn join_points(
         &mut self,
         j: &mut Join,
         out_rec1: *mut OutRec,
@@ -2067,7 +2143,7 @@ impl Clipper {
     }
 
     // C++: Clipper::JoinCommonEdges
-    pub unsafe fn join_common_edges(&mut self) {
+    pub(crate) unsafe fn join_common_edges(&mut self) {
         unsafe {
             let mut joins = std::mem::take(&mut self.joins);
             for join in &mut joins {
@@ -2160,7 +2236,7 @@ impl Clipper {
     }
 
     // C++: Clipper::DoSimplePolygons
-    pub unsafe fn do_simple_polygons(&mut self) {
+    pub(crate) unsafe fn do_simple_polygons(&mut self) {
         unsafe {
             let mut i = 0;
             while i < self.base.poly_outs.len() {
@@ -2586,16 +2662,16 @@ mod tests {
     use crate::types::{OutPt, OutRec};
 
     #[test]
-    fn constructor_applies_init_option_bits() {
-        let clipper = Clipper::with_init_options(
-            InitOptions::ReverseSolution as i32
-                | InitOptions::StrictlySimple as i32
-                | InitOptions::PreserveCollinear as i32,
-        );
+    fn constructor_applies_options() {
+        let clipper = Clipper::with_options(ClipperOptions {
+            reverse_solution: true,
+            strictly_simple: true,
+            preserve_collinear: true,
+        });
 
         assert!(clipper.reverse_solution());
         assert!(clipper.strictly_simple());
-        assert!(clipper.base.preserve_collinear());
+        assert!(clipper.preserve_collinear());
         assert!(!clipper.execute_locked);
         assert!(!clipper.base.has_open_paths);
     }
@@ -2606,9 +2682,11 @@ mod tests {
 
         clipper.set_reverse_solution(true);
         clipper.set_strictly_simple(true);
+        clipper.set_preserve_collinear(true);
 
         assert!(clipper.reverse_solution());
         assert!(clipper.strictly_simple());
+        assert!(clipper.preserve_collinear());
     }
 
     #[test]
@@ -2624,7 +2702,7 @@ mod tests {
         let mut solution = Vec::new();
 
         let err = clipper
-            .execute(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
+            .execute_into(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
             .unwrap_err();
 
         assert_eq!(
@@ -2650,11 +2728,10 @@ mod tests {
             .unwrap();
         let mut polytree = PolyTree::new();
 
-        let succeeded = clipper
-            .execute_polytree(ClipType::Union, &mut polytree, PolyFillType::EvenOdd)
+        clipper
+            .execute_polytree_into(ClipType::Union, &mut polytree, PolyFillType::EvenOdd)
             .unwrap();
 
-        assert!(succeeded);
         assert_eq!(polytree.total(), 1);
         unsafe {
             assert_eq!((*polytree.get_first()).contour.len(), 4);
@@ -2674,11 +2751,10 @@ mod tests {
             .unwrap();
         let mut polytree = PolyTree::new();
 
-        let succeeded = clipper
-            .execute_polytree(ClipType::Union, &mut polytree, PolyFillType::EvenOdd)
+        clipper
+            .execute_polytree_into(ClipType::Union, &mut polytree, PolyFillType::EvenOdd)
             .unwrap();
 
-        assert!(succeeded);
         assert_eq!(polytree.total(), 1);
         let first = polytree.get_first();
         unsafe {
@@ -2707,11 +2783,10 @@ mod tests {
             .unwrap();
         let mut solution = vec![vec![IntPoint::new(1, 1)]];
 
-        let succeeded = clipper
-            .execute(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
+        clipper
+            .execute_into(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
             .unwrap();
 
-        assert!(succeeded);
         assert_eq!(solution.len(), 1);
         assert_eq!(solution[0].len(), 4);
         assert!(solution[0].contains(&IntPoint::new(0, 0)));
@@ -2751,18 +2826,20 @@ mod tests {
             .unwrap();
         let mut solution = Vec::new();
 
-        let succeeded = clipper
-            .execute(ClipType::Union, &mut solution, PolyFillType::NonZero)
+        clipper
+            .execute_into(ClipType::Union, &mut solution, PolyFillType::NonZero)
             .unwrap();
 
-        assert!(succeeded);
         assert_eq!(solution.len(), 1);
         assert_eq!(crate::helpers::area(&solution[0]).abs(), 175.0);
     }
 
     #[test]
     fn execute_strict_simple_no_longer_hits_unported_boundary() {
-        let mut clipper = Clipper::with_init_options(InitOptions::StrictlySimple as i32);
+        let mut clipper = Clipper::with_options(ClipperOptions {
+            strictly_simple: true,
+            ..ClipperOptions::default()
+        });
         clipper
             .add_path(
                 &vec![
@@ -2777,11 +2854,10 @@ mod tests {
             .unwrap();
         let mut solution = Vec::new();
 
-        let succeeded = clipper
-            .execute(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
+        clipper
+            .execute_into(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
             .unwrap();
 
-        assert!(succeeded);
         assert_eq!(solution.len(), 1);
     }
 

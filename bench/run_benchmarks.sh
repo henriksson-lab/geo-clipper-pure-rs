@@ -23,7 +23,7 @@ CASES=(
 
 mkdir -p "${OUT_DIR}"
 
-cargo build --manifest-path "${CRATE_DIR}/Cargo.toml" --release --bin bench
+cargo build --manifest-path "${CRATE_DIR}/Cargo.toml" --release --features bench-bin --bin bench
 
 g++ -O3 -DNDEBUG -std=c++11 \
   "${SCRIPT_DIR}/cpp_bench.cpp" \

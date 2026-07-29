@@ -8,20 +8,20 @@ use crate::types::{
 
 #[derive(Debug)]
 pub struct ClipperOffset {
-    pub miter_limit: f64,
-    pub arc_tolerance: f64,
-    pub dest_polys: Paths,
-    pub src_poly: Path,
-    pub dest_poly: Path,
-    pub normals: Vec<DoublePoint>,
-    pub delta: f64,
-    pub sin_a: f64,
-    pub sin: f64,
-    pub cos: f64,
-    pub miter_lim: f64,
-    pub steps_per_rad: f64,
-    pub lowest: IntPoint,
-    pub poly_nodes: PolyNode,
+    pub(crate) miter_limit: f64,
+    pub(crate) arc_tolerance: f64,
+    pub(crate) dest_polys: Paths,
+    pub(crate) src_poly: Path,
+    pub(crate) dest_poly: Path,
+    pub(crate) normals: Vec<DoublePoint>,
+    pub(crate) delta: f64,
+    pub(crate) sin_a: f64,
+    pub(crate) sin: f64,
+    pub(crate) cos: f64,
+    pub(crate) miter_lim: f64,
+    pub(crate) steps_per_rad: f64,
+    pub(crate) lowest: IntPoint,
+    pub(crate) poly_nodes: PolyNode,
 }
 
 impl Default for ClipperOffset {
@@ -52,7 +52,7 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::Clear
-    pub unsafe fn clear(&mut self) {
+    pub fn clear(&mut self) {
         for child in self.poly_nodes.childs.drain(..) {
             if !child.is_null() {
                 unsafe {
@@ -64,7 +64,7 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::AddPath
-    pub unsafe fn add_path(&mut self, path: &Path, join_type: JoinType, end_type: EndType) {
+    pub fn add_path(&mut self, path: &[IntPoint], join_type: JoinType, end_type: EndType) {
         let mut high_i = path.len();
         if high_i == 0 {
             return;
@@ -123,16 +123,14 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::AddPaths
-    pub unsafe fn add_paths(&mut self, paths: &Paths, join_type: JoinType, end_type: EndType) {
+    pub fn add_paths(&mut self, paths: &[Path], join_type: JoinType, end_type: EndType) {
         for path in paths {
-            unsafe {
-                self.add_path(path, join_type, end_type);
-            }
+            self.add_path(path, join_type, end_type);
         }
     }
 
     // C++: ClipperOffset::FixOrientations
-    pub unsafe fn fix_orientations(&mut self) {
+    unsafe fn fix_orientations(&mut self) {
         unsafe {
             if self.lowest.x >= 0
                 && !orientation(&(*self.poly_nodes.childs[self.lowest.x as usize]).contour)
@@ -157,7 +155,13 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::Execute(Paths&, double)
-    pub fn execute(&mut self, solution: &mut Paths, delta: f64) -> Result<()> {
+    pub fn execute(&mut self, delta: f64) -> Result<Paths> {
+        let mut solution = Vec::new();
+        self.execute_into(&mut solution, delta)?;
+        Ok(solution)
+    }
+
+    pub fn execute_into(&mut self, solution: &mut Paths, delta: f64) -> Result<()> {
         solution.clear();
         unsafe {
             self.fix_orientations();
@@ -167,14 +171,13 @@ impl ClipperOffset {
         let mut clpr = Clipper::new();
         clpr.add_paths(&self.dest_polys, PolyType::Subject, true)?;
         if delta > 0.0 {
-            clpr.execute_with_fill_types(
+            *solution = clpr.execute_with_fill_types(
                 ClipType::Union,
-                solution,
                 PolyFillType::Positive,
                 PolyFillType::Positive,
             )?;
         } else {
-            let r = unsafe { clpr.get_bounds() };
+            let r = clpr.bounds();
             let outer = vec![
                 IntPoint::new(r.left - 10, r.bottom + 10),
                 IntPoint::new(r.right + 10, r.bottom + 10),
@@ -184,9 +187,8 @@ impl ClipperOffset {
 
             clpr.add_path(&outer, PolyType::Subject, true)?;
             clpr.set_reverse_solution(true);
-            clpr.execute_with_fill_types(
+            *solution = clpr.execute_with_fill_types(
                 ClipType::Union,
-                solution,
                 PolyFillType::Negative,
                 PolyFillType::Negative,
             )?;
@@ -198,7 +200,13 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::Execute(PolyTree&, double)
-    pub fn execute_polytree(&mut self, solution: &mut PolyTree, delta: f64) -> Result<()> {
+    pub fn execute_polytree(&mut self, delta: f64) -> Result<PolyTree> {
+        let mut solution = PolyTree::new();
+        self.execute_polytree_into(&mut solution, delta)?;
+        Ok(solution)
+    }
+
+    pub fn execute_polytree_into(&mut self, solution: &mut PolyTree, delta: f64) -> Result<()> {
         unsafe {
             solution.clear();
             self.fix_orientations();
@@ -208,14 +216,13 @@ impl ClipperOffset {
         let mut clpr = Clipper::new();
         clpr.add_paths(&self.dest_polys, PolyType::Subject, true)?;
         if delta > 0.0 {
-            clpr.execute_polytree_with_fill_types(
+            *solution = clpr.execute_polytree_with_fill_types(
                 ClipType::Union,
-                solution,
                 PolyFillType::Positive,
                 PolyFillType::Positive,
             )?;
         } else {
-            let r = unsafe { clpr.get_bounds() };
+            let r = clpr.bounds();
             let outer = vec![
                 IntPoint::new(r.left - 10, r.bottom + 10),
                 IntPoint::new(r.right + 10, r.bottom + 10),
@@ -225,9 +232,8 @@ impl ClipperOffset {
 
             clpr.add_path(&outer, PolyType::Subject, true)?;
             clpr.set_reverse_solution(true);
-            clpr.execute_polytree_with_fill_types(
+            *solution = clpr.execute_polytree_with_fill_types(
                 ClipType::Union,
-                solution,
                 PolyFillType::Negative,
                 PolyFillType::Negative,
             )?;
@@ -254,7 +260,7 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::DoOffset
-    pub unsafe fn do_offset(&mut self, delta: f64) {
+    unsafe fn do_offset(&mut self, delta: f64) {
         self.dest_polys.clear();
         self.delta = delta;
 
@@ -444,7 +450,7 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::OffsetPoint
-    pub fn offset_point(&mut self, j: usize, k: &mut usize, jointype: JoinType) {
+    fn offset_point(&mut self, j: usize, k: &mut usize, jointype: JoinType) {
         self.sin_a =
             self.normals[*k].x * self.normals[j].y - self.normals[j].x * self.normals[*k].y;
         if (self.sin_a * self.delta).abs() < 1.0 {
@@ -493,7 +499,7 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::DoSquare
-    pub fn do_square(&mut self, j: usize, k: usize) {
+    fn do_square(&mut self, j: usize, k: usize) {
         let dx = (self.sin_a)
             .atan2(self.normals[k].x * self.normals[j].x + self.normals[k].y * self.normals[j].y)
             / 4.0;
@@ -521,7 +527,7 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::DoMiter
-    pub fn do_miter(&mut self, j: usize, k: usize, r: f64) {
+    fn do_miter(&mut self, j: usize, k: usize, r: f64) {
         let q = self.delta / r;
         self.dest_poly.push(IntPoint::new(
             round(self.src_poly[j].x as f64 + (self.normals[k].x + self.normals[j].x) * q),
@@ -530,7 +536,7 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::DoRound
-    pub fn do_round(&mut self, j: usize, k: usize) {
+    fn do_round(&mut self, j: usize, k: usize) {
         let a = self
             .sin_a
             .atan2(self.normals[k].x * self.normals[j].x + self.normals[k].y * self.normals[j].y);
@@ -556,9 +562,7 @@ impl ClipperOffset {
 
 impl Drop for ClipperOffset {
     fn drop(&mut self) {
-        unsafe {
-            self.clear();
-        }
+        self.clear();
     }
 }
 
@@ -592,18 +596,16 @@ mod tests {
     #[test]
     fn clear_drops_offset_nodes_and_resets_lowest() {
         let mut offset = ClipperOffset::new(2.0, 0.25);
-        unsafe {
-            offset.add_path(
-                &vec![
-                    IntPoint::new(0, 0),
-                    IntPoint::new(10, 0),
-                    IntPoint::new(10, 10),
-                ],
-                JoinType::Square,
-                EndType::ClosedPolygon,
-            );
-            offset.clear();
-        }
+        offset.add_path(
+            &vec![
+                IntPoint::new(0, 0),
+                IntPoint::new(10, 0),
+                IntPoint::new(10, 10),
+            ],
+            JoinType::Square,
+            EndType::ClosedPolygon,
+        );
+        offset.clear();
 
         assert_eq!(offset.poly_nodes.child_count(), 0);
         assert_eq!(offset.lowest.x, -1);
@@ -694,21 +696,17 @@ mod tests {
     #[test]
     fn execute_positive_offset_cleans_expanded_square() {
         let mut offset = ClipperOffset::new(2.0, 0.25);
-        unsafe {
-            offset.add_path(
-                &vec![
-                    IntPoint::new(0, 0),
-                    IntPoint::new(10, 0),
-                    IntPoint::new(10, 10),
-                    IntPoint::new(0, 10),
-                ],
-                JoinType::Miter,
-                EndType::ClosedPolygon,
-            );
-        }
-        let mut solution = Vec::new();
-
-        offset.execute(&mut solution, 1.0).unwrap();
+        offset.add_path(
+            &vec![
+                IntPoint::new(0, 0),
+                IntPoint::new(10, 0),
+                IntPoint::new(10, 10),
+                IntPoint::new(0, 10),
+            ],
+            JoinType::Miter,
+            EndType::ClosedPolygon,
+        );
+        let solution = offset.execute(1.0).unwrap();
 
         assert_eq!(solution.len(), 1);
         assert_eq!(crate::helpers::area(&solution[0]).abs(), 144.0);
@@ -717,21 +715,17 @@ mod tests {
     #[test]
     fn execute_polytree_positive_offset_builds_node() {
         let mut offset = ClipperOffset::new(2.0, 0.25);
-        unsafe {
-            offset.add_path(
-                &vec![
-                    IntPoint::new(0, 0),
-                    IntPoint::new(10, 0),
-                    IntPoint::new(10, 10),
-                    IntPoint::new(0, 10),
-                ],
-                JoinType::Miter,
-                EndType::ClosedPolygon,
-            );
-        }
-        let mut solution = PolyTree::new();
-
-        offset.execute_polytree(&mut solution, 1.0).unwrap();
+        offset.add_path(
+            &vec![
+                IntPoint::new(0, 0),
+                IntPoint::new(10, 0),
+                IntPoint::new(10, 10),
+                IntPoint::new(0, 10),
+            ],
+            JoinType::Miter,
+            EndType::ClosedPolygon,
+        );
+        let solution = offset.execute_polytree(1.0).unwrap();
 
         assert_eq!(solution.total(), 1);
         unsafe {
@@ -744,21 +738,17 @@ mod tests {
     #[test]
     fn execute_negative_offset_shrinks_square() {
         let mut offset = ClipperOffset::new(2.0, 0.25);
-        unsafe {
-            offset.add_path(
-                &vec![
-                    IntPoint::new(0, 0),
-                    IntPoint::new(10, 0),
-                    IntPoint::new(10, 10),
-                    IntPoint::new(0, 10),
-                ],
-                JoinType::Miter,
-                EndType::ClosedPolygon,
-            );
-        }
-        let mut solution = Vec::new();
-
-        offset.execute(&mut solution, -1.0).unwrap();
+        offset.add_path(
+            &vec![
+                IntPoint::new(0, 0),
+                IntPoint::new(10, 0),
+                IntPoint::new(10, 10),
+                IntPoint::new(0, 10),
+            ],
+            JoinType::Miter,
+            EndType::ClosedPolygon,
+        );
+        let solution = offset.execute(-1.0).unwrap();
 
         assert_eq!(solution.len(), 1);
         assert_eq!(crate::helpers::area(&solution[0]).abs(), 64.0);
@@ -767,21 +757,17 @@ mod tests {
     #[test]
     fn execute_polytree_negative_offset_shrinks_square() {
         let mut offset = ClipperOffset::new(2.0, 0.25);
-        unsafe {
-            offset.add_path(
-                &vec![
-                    IntPoint::new(0, 0),
-                    IntPoint::new(10, 0),
-                    IntPoint::new(10, 10),
-                    IntPoint::new(0, 10),
-                ],
-                JoinType::Miter,
-                EndType::ClosedPolygon,
-            );
-        }
-        let mut solution = PolyTree::new();
-
-        offset.execute_polytree(&mut solution, -1.0).unwrap();
+        offset.add_path(
+            &vec![
+                IntPoint::new(0, 0),
+                IntPoint::new(10, 0),
+                IntPoint::new(10, 10),
+                IntPoint::new(0, 10),
+            ],
+            JoinType::Miter,
+            EndType::ClosedPolygon,
+        );
+        let solution = offset.execute_polytree(-1.0).unwrap();
 
         assert_eq!(solution.total(), 1);
         unsafe {

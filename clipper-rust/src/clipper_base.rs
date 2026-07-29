@@ -9,7 +9,7 @@ use crate::helpers::{
     reverse_horizontal, slopes_equal_3_points,
 };
 use crate::types::{
-    CInt, EdgeSide, IntRect, LocalMinimum, OutPt, OutRec, Path, Paths, PolyType, SKIP, TEdge,
+    CInt, EdgeSide, IntPoint, IntRect, LocalMinimum, OutPt, OutRec, Path, PolyType, SKIP, TEdge,
     UNASSIGNED,
 };
 
@@ -118,7 +118,7 @@ impl ClipperBase {
     }
 
     // C++: ClipperBase::AddPath
-    pub fn add_path(&mut self, pg: &Path, poly_type: PolyType, closed: bool) -> Result<bool> {
+    pub fn add_path(&mut self, pg: &[IntPoint], poly_type: PolyType, closed: bool) -> Result<bool> {
         if !closed && poly_type == PolyType::Clip {
             return Err(ClipperError::new("AddPath: Open paths must be subject."));
         }
@@ -332,7 +332,7 @@ impl ClipperBase {
     }
 
     // C++: ClipperBase::AddPaths
-    pub fn add_paths(&mut self, ppg: &Paths, poly_type: PolyType, closed: bool) -> Result<bool> {
+    pub fn add_paths(&mut self, ppg: &[Path], poly_type: PolyType, closed: bool) -> Result<bool> {
         let mut result = false;
         for pg in ppg {
             if self.add_path(pg, poly_type, closed)? {

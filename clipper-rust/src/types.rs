@@ -18,7 +18,7 @@ pub const TOLERANCE: f64 = 1.0E-20;
 pub const UNASSIGNED: i32 = -1;
 pub const SKIP: i32 = -2;
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct IntPoint {
     pub x: CInt,
     pub y: CInt,
@@ -27,6 +27,18 @@ pub struct IntPoint {
 impl IntPoint {
     pub fn new(x: CInt, y: CInt) -> Self {
         Self { x, y }
+    }
+}
+
+impl From<(CInt, CInt)> for IntPoint {
+    fn from((x, y): (CInt, CInt)) -> Self {
+        Self { x, y }
+    }
+}
+
+impl From<IntPoint> for (CInt, CInt) {
+    fn from(point: IntPoint) -> Self {
+        (point.x, point.y)
     }
 }
 
@@ -59,6 +71,17 @@ pub struct IntRect {
     pub bottom: CInt,
 }
 
+impl IntRect {
+    pub fn new(left: CInt, top: CInt, right: CInt, bottom: CInt) -> Self {
+        Self {
+            left,
+            top,
+            right,
+            bottom,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ClipType {
     Intersection,
@@ -79,13 +102,6 @@ pub enum PolyFillType {
     NonZero,
     Positive,
     Negative,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum InitOptions {
-    ReverseSolution = 1,
-    StrictlySimple = 2,
-    PreserveCollinear = 4,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -258,13 +274,13 @@ impl Default for Join {
 
 #[derive(Debug)]
 pub struct PolyNode {
-    pub contour: Path,
-    pub childs: Vec<*mut PolyNode>,
-    pub parent: *mut PolyNode,
-    pub index: usize,
-    pub is_open: bool,
-    pub jointype: JoinType,
-    pub endtype: EndType,
+    pub(crate) contour: Path,
+    pub(crate) childs: Vec<*mut PolyNode>,
+    pub(crate) parent: *mut PolyNode,
+    pub(crate) index: usize,
+    pub(crate) is_open: bool,
+    pub(crate) jointype: JoinType,
+    pub(crate) endtype: EndType,
 }
 
 impl Default for PolyNode {
@@ -296,8 +312,22 @@ impl PolyNode {
         self.is_open
     }
 
+    pub fn contour(&self) -> &[IntPoint] {
+        &self.contour
+    }
+
+    pub fn children(&self) -> PolyNodeChildren<'_> {
+        PolyNodeChildren {
+            iter: self.childs.iter(),
+        }
+    }
+
+    pub fn child(&self, index: usize) -> Option<&PolyNode> {
+        self.childs.get(index).map(|child| unsafe { &**child })
+    }
+
     // C++: PolyNode::AddChild
-    pub unsafe fn add_child(&mut self, child: *mut PolyNode) {
+    pub(crate) unsafe fn add_child(&mut self, child: *mut PolyNode) {
         let cnt = self.childs.len();
         self.childs.push(child);
         // SAFETY: caller provides a valid child pointer owned by the surrounding PolyTree.
@@ -308,7 +338,7 @@ impl PolyNode {
     }
 
     // C++: PolyNode::GetNext
-    pub fn get_next(&self) -> *mut PolyNode {
+    pub(crate) fn get_next(&self) -> *mut PolyNode {
         if !self.childs.is_empty() {
             self.childs[0]
         } else {
@@ -317,7 +347,7 @@ impl PolyNode {
     }
 
     // C++: PolyNode::GetNextSiblingUp
-    pub fn get_next_sibling_up(&self) -> *mut PolyNode {
+    pub(crate) fn get_next_sibling_up(&self) -> *mut PolyNode {
         if self.parent.is_null() {
             ptr::null_mut()
         } else {
@@ -348,10 +378,22 @@ impl PolyNode {
     }
 }
 
+pub struct PolyNodeChildren<'a> {
+    iter: std::slice::Iter<'a, *mut PolyNode>,
+}
+
+impl<'a> Iterator for PolyNodeChildren<'a> {
+    type Item = &'a PolyNode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|child| unsafe { &**child })
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct PolyTree {
-    pub node: PolyNode,
-    pub all_nodes: Vec<*mut PolyNode>,
+    pub(crate) node: PolyNode,
+    pub(crate) all_nodes: Vec<*mut PolyNode>,
 }
 
 impl PolyTree {
@@ -360,7 +402,7 @@ impl PolyTree {
     }
 
     // C++: PolyTree::Clear
-    pub unsafe fn clear(&mut self) {
+    pub fn clear(&mut self) {
         for node in self.all_nodes.drain(..) {
             if !node.is_null() {
                 // SAFETY: all_nodes owns pointers inserted with Box::into_raw by this port.
@@ -373,12 +415,16 @@ impl PolyTree {
     }
 
     // C++: PolyTree::GetFirst
-    pub fn get_first(&self) -> *mut PolyNode {
-        if !self.node.childs.is_empty() {
-            self.node.childs[0]
-        } else {
-            ptr::null_mut()
-        }
+    pub fn first(&self) -> Option<&PolyNode> {
+        self.node.child(0)
+    }
+
+    pub fn children(&self) -> PolyNodeChildren<'_> {
+        self.node.children()
+    }
+
+    pub(crate) fn get_first(&self) -> *mut PolyNode {
+        self.node.childs.first().copied().unwrap_or(ptr::null_mut())
     }
 
     // C++: PolyTree::Total
@@ -393,9 +439,6 @@ impl PolyTree {
 
 impl Drop for PolyTree {
     fn drop(&mut self) {
-        // SAFETY: mirrors PolyTree::~PolyTree deleting AllNodes.
-        unsafe {
-            self.clear();
-        }
+        self.clear();
     }
 }

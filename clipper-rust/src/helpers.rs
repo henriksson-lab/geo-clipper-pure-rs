@@ -24,7 +24,7 @@ pub fn abs(val: CInt) -> CInt {
 }
 
 // C++: Area(const Path&)
-pub fn area(poly: &Path) -> f64 {
+pub fn area(poly: &[IntPoint]) -> f64 {
     let size = poly.len();
     if size < 3 {
         return 0.0;
@@ -80,12 +80,12 @@ pub unsafe fn point_is_vertex(pt: IntPoint, pp: *mut OutPt) -> bool {
 }
 
 // C++: Orientation
-pub fn orientation(poly: &Path) -> bool {
+pub fn orientation(poly: &[IntPoint]) -> bool {
     area(poly) >= 0.0
 }
 
 // C++: PointInPolygon(const IntPoint&, const Path&)
-pub fn point_in_polygon(pt: IntPoint, path: &Path) -> i32 {
+pub fn point_in_polygon(pt: IntPoint, path: &[IntPoint]) -> i32 {
     let mut result = 0;
     let cnt = path.len();
     if cnt < 3 {
@@ -654,18 +654,18 @@ pub fn reverse_paths(p: &mut Paths) {
 
 // C++: SimplifyPolygon
 pub fn simplify_polygon_into(
-    in_poly: &Path,
+    in_poly: &[IntPoint],
     out_polys: &mut Paths,
     fill_type: PolyFillType,
 ) -> Result<()> {
     let mut c = Clipper::new();
     c.set_strictly_simple(true);
     c.add_path(in_poly, PolyType::Subject, true)?;
-    c.execute_with_fill_types(ClipType::Union, out_polys, fill_type, fill_type)?;
+    c.execute_into_with_fill_types(ClipType::Union, out_polys, fill_type, fill_type)?;
     Ok(())
 }
 
-pub fn simplify_polygon(in_poly: &Path, fill_type: PolyFillType) -> Result<Paths> {
+pub fn simplify_polygon(in_poly: &[IntPoint], fill_type: PolyFillType) -> Result<Paths> {
     let mut out_polys = Vec::new();
     simplify_polygon_into(in_poly, &mut out_polys, fill_type)?;
     Ok(out_polys)
@@ -673,14 +673,14 @@ pub fn simplify_polygon(in_poly: &Path, fill_type: PolyFillType) -> Result<Paths
 
 // C++: SimplifyPolygons(const Paths&, Paths&, PolyFillType)
 pub fn simplify_polygons_into(
-    in_polys: &Paths,
+    in_polys: &[Path],
     out_polys: &mut Paths,
     fill_type: PolyFillType,
 ) -> Result<()> {
     let mut c = Clipper::new();
     c.set_strictly_simple(true);
     c.add_paths(in_polys, PolyType::Subject, true)?;
-    c.execute_with_fill_types(ClipType::Union, out_polys, fill_type, fill_type)?;
+    c.execute_into_with_fill_types(ClipType::Union, out_polys, fill_type, fill_type)?;
     Ok(())
 }
 
@@ -745,7 +745,7 @@ unsafe fn exclude_op(op: *mut OutPt) -> *mut OutPt {
 }
 
 // C++: CleanPolygon(const Path&, Path&, double)
-pub fn clean_polygon_into(in_poly: &Path, out_poly: &mut Path, distance: f64) {
+pub fn clean_polygon_into(in_poly: &[IntPoint], out_poly: &mut Path, distance: f64) {
     let mut size = in_poly.len();
     if size == 0 {
         out_poly.clear();
@@ -811,14 +811,14 @@ pub fn clean_polygon_mut(poly: &mut Path, distance: f64) {
     clean_polygon_into(&input, poly, distance);
 }
 
-pub fn clean_polygon(in_poly: &Path, distance: f64) -> Path {
+pub fn clean_polygon(in_poly: &[IntPoint], distance: f64) -> Path {
     let mut out_poly = Vec::new();
     clean_polygon_into(in_poly, &mut out_poly, distance);
     out_poly
 }
 
 // C++: CleanPolygons(const Paths&, Paths&, double)
-pub fn clean_polygons_into(in_polys: &Paths, out_polys: &mut Paths, distance: f64) {
+pub fn clean_polygons_into(in_polys: &[Path], out_polys: &mut Paths, distance: f64) {
     out_polys.clear();
     out_polys.reserve(in_polys.len());
     for in_poly in in_polys {
@@ -832,14 +832,20 @@ pub fn clean_polygons_mut(polys: &mut Paths, distance: f64) {
     clean_polygons_into(&input, polys, distance);
 }
 
-pub fn clean_polygons(in_polys: &Paths, distance: f64) -> Paths {
+pub fn clean_polygons(in_polys: &[Path], distance: f64) -> Paths {
     let mut out_polys = Vec::new();
     clean_polygons_into(in_polys, &mut out_polys, distance);
     out_polys
 }
 
 // C++: Minkowski
-pub fn minkowski(poly: &Path, path: &Path, solution: &mut Paths, is_sum: bool, is_closed: bool) {
+pub fn minkowski(
+    poly: &[IntPoint],
+    path: &[IntPoint],
+    solution: &mut Paths,
+    is_sum: bool,
+    is_closed: bool,
+) {
     let delta = if is_closed { 1 } else { 0 };
     let poly_cnt = poly.len();
     let path_cnt = path.len();
@@ -885,15 +891,15 @@ pub fn minkowski(poly: &Path, path: &Path, solution: &mut Paths, is_sum: bool, i
 
 // C++: MinkowskiSum(const Path&, const Path&, Paths&, bool)
 pub fn minkowski_sum_into(
-    pattern: &Path,
-    path: &Path,
+    pattern: &[IntPoint],
+    path: &[IntPoint],
     solution: &mut Paths,
     path_is_closed: bool,
 ) -> Result<()> {
     minkowski(pattern, path, solution, true, path_is_closed);
     let mut c = Clipper::new();
     c.add_paths(solution, PolyType::Subject, true)?;
-    c.execute_with_fill_types(
+    c.execute_into_with_fill_types(
         ClipType::Union,
         solution,
         PolyFillType::NonZero,
@@ -904,8 +910,8 @@ pub fn minkowski_sum_into(
 
 // C++: MinkowskiSum(const Path&, const Paths&, Paths&, bool)
 pub fn minkowski_sum_paths_into(
-    pattern: &Path,
-    paths: &Paths,
+    pattern: &[IntPoint],
+    paths: &[Path],
     solution: &mut Paths,
     path_is_closed: bool,
 ) -> Result<()> {
@@ -920,7 +926,7 @@ pub fn minkowski_sum_paths_into(
             c.add_path(&tmp2, PolyType::Clip, true)?;
         }
     }
-    c.execute_with_fill_types(
+    c.execute_into_with_fill_types(
         ClipType::Union,
         solution,
         PolyFillType::NonZero,
@@ -930,11 +936,15 @@ pub fn minkowski_sum_paths_into(
 }
 
 // C++: MinkowskiDiff
-pub fn minkowski_diff_into(poly1: &Path, poly2: &Path, solution: &mut Paths) -> Result<()> {
+pub fn minkowski_diff_into(
+    poly1: &[IntPoint],
+    poly2: &[IntPoint],
+    solution: &mut Paths,
+) -> Result<()> {
     minkowski(poly1, poly2, solution, false, true);
     let mut c = Clipper::new();
     c.add_paths(solution, PolyType::Subject, true)?;
-    c.execute_with_fill_types(
+    c.execute_into_with_fill_types(
         ClipType::Union,
         solution,
         PolyFillType::NonZero,
@@ -944,7 +954,7 @@ pub fn minkowski_diff_into(poly1: &Path, poly2: &Path, solution: &mut Paths) -> 
 }
 
 // C++: TranslatePath
-pub fn translate_path(input: &Path, output: &mut Path, delta: IntPoint) {
+pub fn translate_path(input: &[IntPoint], output: &mut Path, delta: IntPoint) {
     output.clear();
     output.reserve(input.len());
     for pt in input {
@@ -979,21 +989,39 @@ fn add_poly_node_to_paths(polynode: &PolyNode, nodetype: NodeType, paths: &mut P
 }
 
 // C++: PolyTreeToPaths
-pub fn poly_tree_to_paths(polytree: &PolyTree, paths: &mut Paths) {
+pub fn poly_tree_to_paths(polytree: &PolyTree) -> Paths {
+    let mut paths = Vec::new();
+    poly_tree_to_paths_into(polytree, &mut paths);
+    paths
+}
+
+pub fn poly_tree_to_paths_into(polytree: &PolyTree, paths: &mut Paths) {
     paths.clear();
     paths.reserve(polytree.total());
     add_poly_node_to_paths(&polytree.node, NodeType::Any, paths);
 }
 
 // C++: ClosedPathsFromPolyTree
-pub fn closed_paths_from_poly_tree(polytree: &PolyTree, paths: &mut Paths) {
+pub fn closed_paths_from_poly_tree(polytree: &PolyTree) -> Paths {
+    let mut paths = Vec::new();
+    closed_paths_from_poly_tree_into(polytree, &mut paths);
+    paths
+}
+
+pub fn closed_paths_from_poly_tree_into(polytree: &PolyTree, paths: &mut Paths) {
     paths.clear();
     paths.reserve(polytree.total());
     add_poly_node_to_paths(&polytree.node, NodeType::Closed, paths);
 }
 
 // C++: OpenPathsFromPolyTree
-pub fn open_paths_from_poly_tree(polytree: &PolyTree, paths: &mut Paths) {
+pub fn open_paths_from_poly_tree(polytree: &PolyTree) -> Paths {
+    let mut paths = Vec::new();
+    open_paths_from_poly_tree_into(polytree, &mut paths);
+    paths
+}
+
+pub fn open_paths_from_poly_tree_into(polytree: &PolyTree, paths: &mut Paths) {
     paths.clear();
     paths.reserve(polytree.total());
     for child in &polytree.node.childs {
@@ -1356,7 +1384,7 @@ mod tests {
         minkowski(&pattern, &path, &mut solution, true, false);
 
         assert_eq!(solution.len(), 6);
-        assert!(solution.iter().all(orientation));
+        assert!(solution.iter().all(|path| orientation(path)));
     }
 
     #[test]
@@ -1425,9 +1453,9 @@ mod tests {
         let mut closed_paths = Vec::new();
         let mut open_paths = Vec::new();
 
-        poly_tree_to_paths(&polytree, &mut all);
-        closed_paths_from_poly_tree(&polytree, &mut closed_paths);
-        open_paths_from_poly_tree(&polytree, &mut open_paths);
+        poly_tree_to_paths_into(&polytree, &mut all);
+        closed_paths_from_poly_tree_into(&polytree, &mut closed_paths);
+        open_paths_from_poly_tree_into(&polytree, &mut open_paths);
 
         assert_eq!(all.len(), 2);
         assert_eq!(closed_paths.len(), 1);

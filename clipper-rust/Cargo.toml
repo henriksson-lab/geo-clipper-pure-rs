@@ -2,5 +2,19 @@
 name = "clipper-rust"
 version = "0.1.0"
 edition = "2024"
+include = [
+    "Cargo.toml",
+    "src/**",
+    "tests/**",
+]
+
+[features]
+default = []
+bench-bin = []
+
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+required-features = ["bench-bin"]
 
 [dependencies]

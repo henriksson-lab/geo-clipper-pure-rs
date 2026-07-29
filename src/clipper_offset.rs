@@ -36,9 +36,9 @@ impl ClipperOffset {
         Self {
             miter_limit,
             arc_tolerance,
-            dest_polys: Vec::new(),
-            src_poly: Vec::new(),
-            dest_poly: Vec::new(),
+            dest_polys: Paths::new(),
+            src_poly: Path::new(),
+            dest_poly: Path::new(),
             normals: Vec::new(),
             delta: 0.0,
             sin_a: 0.0,
@@ -175,7 +175,7 @@ impl ClipperOffset {
 
     // C++: ClipperOffset::Execute(Paths&, double)
     pub fn execute(&mut self, delta: f64) -> Result<Paths> {
-        let mut solution = Vec::new();
+        let mut solution = Paths::new();
         self.execute_into(&mut solution, delta)?;
         Ok(solution)
     }

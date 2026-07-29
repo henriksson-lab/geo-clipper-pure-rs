@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use clipper_rust::{
+use geo_clipper_pure_rs::{
     ClipType, Clipper, ClipperOffset, EndType, IntPoint, JoinType, Path as ClipperPath, Paths,
     PolyFillType, PolyType, area,
 };
@@ -138,7 +138,7 @@ fn rust_matches_cpp_for_basic_union_and_offset_cases() {
             true,
         )
         .unwrap();
-    let mut rust_union_solution = Vec::new();
+    let mut rust_union_solution = Paths::new();
     rust_union
         .execute_into(
             ClipType::Union,
@@ -153,7 +153,8 @@ fn rust_matches_cpp_for_basic_union_and_offset_cases() {
         IntPoint::new(10, 0),
         IntPoint::new(10, 10),
         IntPoint::new(0, 10),
-    ];
+    ]
+    .into();
     rust_offset.add_path(&square, JoinType::Miter, EndType::ClosedPolygon);
     let rust_offset_solution = rust_offset.execute(1.0).unwrap();
 

@@ -1,7 +1,7 @@
 use std::env;
 use std::time::Instant;
 
-use clipper_rust::{
+use geo_clipper_pure_rs::{
     ClipType, Clipper, ClipperOffset, ClipperOptions, EndType, IntPoint, JoinType, Path, Paths,
     PolyFillType, PolyType, area, closed_paths_from_poly_tree_into, open_paths_from_poly_tree_into,
 };
@@ -70,10 +70,11 @@ fn rect(left: i64, top: i64, right: i64, bottom: i64) -> Path {
         IntPoint::new(right, bottom),
         IntPoint::new(left, bottom),
     ]
+    .into()
 }
 
 fn rect_grid(cols: i64, rows: i64, step: i64, size: i64, xoff: i64, yoff: i64) -> Paths {
-    let mut paths = Vec::with_capacity((cols * rows) as usize);
+    let mut paths = Paths::with_capacity((cols * rows) as usize);
     for y in 0..rows {
         for x in 0..cols {
             let left = xoff + x * step;
@@ -85,7 +86,7 @@ fn rect_grid(cols: i64, rows: i64, step: i64, size: i64, xoff: i64, yoff: i64) -
 }
 
 fn vertical_strips(count: i64, width: i64, height: i64, gap: i64) -> Paths {
-    let mut paths = Vec::with_capacity(count as usize);
+    let mut paths = Paths::with_capacity(count as usize);
     for i in 0..count {
         let left = i * gap;
         paths.push(rect(left, 0, left + width, height));
@@ -94,7 +95,7 @@ fn vertical_strips(count: i64, width: i64, height: i64, gap: i64) -> Paths {
 }
 
 fn horizontal_strips(count: i64, width: i64, height: i64, gap: i64) -> Paths {
-    let mut paths = Vec::with_capacity(count as usize);
+    let mut paths = Paths::with_capacity(count as usize);
     for i in 0..count {
         let top = i * gap;
         paths.push(rect(0, top, width, top + height));
@@ -103,7 +104,7 @@ fn horizontal_strips(count: i64, width: i64, height: i64, gap: i64) -> Paths {
 }
 
 fn star(cx: i64, cy: i64, outer: i64, inner: i64, vertices: usize) -> Path {
-    let mut path = Vec::with_capacity(vertices);
+    let mut path = Path::with_capacity(vertices);
     for i in 0..vertices {
         let angle = (i as f64) * std::f64::consts::TAU / vertices as f64;
         let radius = if i % 2 == 0 { outer } else { inner } as f64;
@@ -116,7 +117,7 @@ fn star(cx: i64, cy: i64, outer: i64, inner: i64, vertices: usize) -> Path {
 }
 
 fn star_grid(cols: i64, rows: i64, step: i64, vertices: usize) -> Paths {
-    let mut paths = Vec::with_capacity((cols * rows) as usize);
+    let mut paths = Paths::with_capacity((cols * rows) as usize);
     for y in 0..rows {
         for x in 0..cols {
             paths.push(star(x * step, y * step, 34, 17, vertices));
@@ -134,7 +135,7 @@ fn jitter(value: i64) -> i64 {
 }
 
 fn jittered_rect_grid(cols: i64, rows: i64, step: i64, size: i64) -> Paths {
-    let mut paths = Vec::with_capacity((cols * rows) as usize);
+    let mut paths = Paths::with_capacity((cols * rows) as usize);
     for y in 0..rows {
         for x in 0..cols {
             let seed = y * cols + x;
@@ -155,7 +156,7 @@ fn jittered_rect_grid(cols: i64, rows: i64, step: i64, size: i64) -> Paths {
 }
 
 fn open_diagonals(count: i64, span: i64, step: i64) -> Paths {
-    let mut paths = Vec::with_capacity((count * 2) as usize);
+    let mut paths = Paths::with_capacity((count * 2) as usize);
     for i in 0..count {
         let offset = i * step;
         paths.push(vec![
@@ -178,7 +179,7 @@ fn run_union_dense() -> Summary {
     clipper
         .add_paths(&subjects, PolyType::Subject, true)
         .unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Union, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -191,7 +192,7 @@ fn run_touching_rect_grid() -> Summary {
     clipper
         .add_paths(&subjects, PolyType::Subject, true)
         .unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Union, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -204,7 +205,7 @@ fn jittered_sliver_union_sized(size: i64) -> (bool, Paths) {
     clipper
         .add_paths(&subjects, PolyType::Subject, true)
         .unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Union, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -228,7 +229,7 @@ fn run_intersection_grid() -> Summary {
         .add_paths(&subjects, PolyType::Subject, true)
         .unwrap();
     clipper.add_paths(&clips, PolyType::Clip, true).unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Intersection, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -246,7 +247,7 @@ fn run_nested_holes() -> Summary {
     clipper
         .add_paths(&islands, PolyType::Subject, true)
         .unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Difference, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -260,7 +261,7 @@ fn run_difference_holes() -> Summary {
         .unwrap();
     let clips = rect_grid(38, 38, 23, 11, 15, 15);
     clipper.add_paths(&clips, PolyType::Clip, true).unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Difference, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -273,7 +274,7 @@ fn run_strict_simple_stars() -> Summary {
     clipper
         .add_paths(&subjects, PolyType::Subject, true)
         .unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Union, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -282,7 +283,7 @@ fn run_strict_simple_stars() -> Summary {
 
 fn run_open_paths_clip() -> Summary {
     let mut clipper = Clipper::new();
-    let closed = vec![rect(80, 80, 920, 920)];
+    let closed = Paths::from(vec![rect(80, 80, 920, 920)]);
     let open = open_diagonals(180, 1100, 5);
     clipper.add_paths(&closed, PolyType::Clip, true).unwrap();
     clipper.add_paths(&open, PolyType::Subject, false).unwrap();
@@ -290,7 +291,7 @@ fn run_open_paths_clip() -> Summary {
         .execute_polytree(ClipType::Intersection, PolyFillType::NonZero)
         .unwrap();
     let ok = true;
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     open_paths_from_poly_tree_into(&polytree, &mut solution);
     summarize(ok, &solution)
 }
@@ -311,7 +312,7 @@ fn run_large_coord_xor() -> Summary {
         .add_paths(&subjects, PolyType::Subject, true)
         .unwrap();
     clipper.add_paths(&clips, PolyType::Clip, true).unwrap();
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     clipper
         .execute_into(ClipType::Xor, &mut solution, PolyFillType::NonZero)
         .unwrap();
@@ -345,7 +346,7 @@ fn run_polytree_closed_nested() -> Summary {
         .execute_polytree(ClipType::Difference, PolyFillType::NonZero)
         .unwrap();
     let ok = true;
-    let mut solution = Vec::new();
+    let mut solution = Paths::new();
     closed_paths_from_poly_tree_into(&polytree, &mut solution);
     summarize(ok, &solution)
 }

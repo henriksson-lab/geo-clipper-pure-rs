@@ -24,7 +24,11 @@ pub fn abs(val: CInt) -> CInt {
     if val < 0 { -val } else { val }
 }
 
-// C++: Area(const Path&)
+/// Returns the signed area of a polygon.
+///
+/// Counter-clockwise paths have positive area and clockwise paths have
+/// negative area, matching Clipper's `Area(const Path&)` semantics. Use
+/// `area(path).abs()` when only the geometric area is needed.
 pub fn area(poly: &[IntPoint]) -> f64 {
     let size = poly.len();
     if size < 3 {
@@ -679,7 +683,7 @@ pub fn simplify_polygon_into(
 }
 
 pub fn simplify_polygon(in_poly: &[IntPoint], fill_type: PolyFillType) -> Result<Paths> {
-    let mut out_polys = Vec::new();
+    let mut out_polys = Paths::new();
     simplify_polygon_into(in_poly, &mut out_polys, fill_type)?;
     Ok(out_polys)
 }
@@ -825,7 +829,7 @@ pub fn clean_polygon_mut(poly: &mut Path, distance: f64) {
 }
 
 pub fn clean_polygon(in_poly: &[IntPoint], distance: f64) -> Path {
-    let mut out_poly = Vec::new();
+    let mut out_poly = Path::new();
     clean_polygon_into(in_poly, &mut out_poly, distance);
     out_poly
 }
@@ -846,7 +850,7 @@ pub fn clean_polygons_mut(polys: &mut Paths, distance: f64) {
 }
 
 pub fn clean_polygons(in_polys: &[Path], distance: f64) -> Paths {
-    let mut out_polys = Vec::new();
+    let mut out_polys = Paths::new();
     clean_polygons_into(in_polys, &mut out_polys, distance);
     out_polys
 }
@@ -889,7 +893,7 @@ pub fn minkowski(
     solution.reserve((path_cnt + delta) * (poly_cnt + 1));
     for i in 0..(path_cnt - 1 + delta) {
         for j in 0..poly_cnt {
-            let mut quad = Vec::with_capacity(4);
+            let mut quad = Path::with_capacity(4);
             quad.push(pp[i % path_cnt][j % poly_cnt]);
             quad.push(pp[(i + 1) % path_cnt][j % poly_cnt]);
             quad.push(pp[(i + 1) % path_cnt][(j + 1) % poly_cnt]);
@@ -930,11 +934,11 @@ pub fn minkowski_sum_paths_into(
 ) -> Result<()> {
     let mut c = Clipper::new();
     for path in paths {
-        let mut tmp = Vec::new();
+        let mut tmp = Paths::new();
         minkowski(pattern, path, &mut tmp, true, path_is_closed);
         c.add_paths(&tmp, PolyType::Subject, true)?;
         if path_is_closed {
-            let mut tmp2 = Vec::new();
+            let mut tmp2 = Path::new();
             translate_path(path, &mut tmp2, pattern[0]);
             c.add_path(&tmp2, PolyType::Clip, true)?;
         }
@@ -1003,7 +1007,7 @@ fn add_poly_node_to_paths(polynode: &PolyNode, nodetype: NodeType, paths: &mut P
 
 // C++: PolyTreeToPaths
 pub fn poly_tree_to_paths(polytree: &PolyTree) -> Paths {
-    let mut paths = Vec::new();
+    let mut paths = Paths::new();
     poly_tree_to_paths_into(polytree, &mut paths);
     paths
 }
@@ -1016,7 +1020,7 @@ pub fn poly_tree_to_paths_into(polytree: &PolyTree, paths: &mut Paths) {
 
 // C++: ClosedPathsFromPolyTree
 pub fn closed_paths_from_poly_tree(polytree: &PolyTree) -> Paths {
-    let mut paths = Vec::new();
+    let mut paths = Paths::new();
     closed_paths_from_poly_tree_into(polytree, &mut paths);
     paths
 }
@@ -1029,7 +1033,7 @@ pub fn closed_paths_from_poly_tree_into(polytree: &PolyTree, paths: &mut Paths) 
 
 // C++: OpenPathsFromPolyTree
 pub fn open_paths_from_poly_tree(polytree: &PolyTree) -> Paths {
-    let mut paths = Vec::new();
+    let mut paths = Paths::new();
     open_paths_from_poly_tree_into(polytree, &mut paths);
     paths
 }
@@ -1316,11 +1320,11 @@ mod tests {
 
     #[test]
     fn reverse_and_translate_paths_work_in_place_style() {
-        let mut path = vec![
+        let mut path = Path::from(vec![
             IntPoint::new(0, 0),
             IntPoint::new(1, 0),
             IntPoint::new(1, 1),
-        ];
+        ]);
         reverse_path(&mut path);
         assert_eq!(
             path,
@@ -1331,7 +1335,7 @@ mod tests {
             ]
         );
 
-        let mut translated = Vec::new();
+        let mut translated = Path::new();
         translate_path(&path, &mut translated, IntPoint::new(10, -2));
         assert_eq!(
             translated,
@@ -1406,7 +1410,7 @@ mod tests {
             IntPoint::new(20, 10),
             IntPoint::new(20, 20),
         ];
-        let mut solution = Vec::new();
+        let mut solution = Paths::new();
 
         minkowski(&pattern, &path, &mut solution, true, false);
 
@@ -1442,8 +1446,8 @@ mod tests {
             IntPoint::new(10, 10),
             IntPoint::new(0, 10),
         ];
-        let mut sum = Vec::new();
-        let mut diff = Vec::new();
+        let mut sum = Paths::new();
+        let mut diff = Paths::new();
 
         minkowski_sum_into(&pattern, &path, &mut sum, true).unwrap();
         minkowski_diff_into(&pattern, &path, &mut diff).unwrap();
@@ -1456,15 +1460,15 @@ mod tests {
     fn polytree_path_extractors_filter_open_and_closed_nodes() {
         let mut polytree = PolyTree::new();
         let closed = Box::into_raw(Box::new(PolyNode {
-            contour: vec![
+            contour: Path::from(vec![
                 IntPoint::new(0, 0),
                 IntPoint::new(10, 0),
                 IntPoint::new(10, 10),
-            ],
+            ]),
             ..PolyNode::new()
         }));
         let open = Box::into_raw(Box::new(PolyNode {
-            contour: vec![IntPoint::new(20, 20), IntPoint::new(30, 30)],
+            contour: Path::from(vec![IntPoint::new(20, 20), IntPoint::new(30, 30)]),
             is_open: true,
             ..PolyNode::new()
         }));
@@ -1476,9 +1480,9 @@ mod tests {
             polytree.node.add_child(open);
         }
 
-        let mut all = Vec::new();
-        let mut closed_paths = Vec::new();
-        let mut open_paths = Vec::new();
+        let mut all = Paths::new();
+        let mut closed_paths = Paths::new();
+        let mut open_paths = Paths::new();
 
         poly_tree_to_paths_into(&polytree, &mut all);
         closed_paths_from_poly_tree_into(&polytree, &mut closed_paths);

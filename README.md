@@ -41,17 +41,19 @@ the crate interface.
 Main public types and functions:
 
 - `Clipper`, `ClipperOptions`, and `ClipperOffset`
-- `IntPoint`, `IntRect`, `Path`, `Paths`, and Clipper enums
+- `IntPoint`, `IntRect`, `Path`, `Paths`, and Clipper enums. `Path` and
+  `Paths` are thin owned newtypes over point and path vectors, with slice access
+  through deref and `AsRef`.
 - typed status/query results such as `AddPathResult`, `Orientation`, and
   `PointLocation`
-- helpers such as `area`, `orientation`, `is_counter_clockwise`,
+- helpers such as signed `area`, `orientation`, `is_counter_clockwise`,
   `point_in_polygon`, simplification, cleaning, Minkowski operations, and
   `PolyTree` path extraction
 
 Example:
 
 ```rust
-use clipper_rust::{ClipType, Clipper, IntPoint, PolyFillType, PolyType};
+use geo_clipper_pure_rs::{ClipType, Clipper, IntPoint, PolyFillType, PolyType};
 
 let a = vec![
     IntPoint::new(0, 0),
@@ -71,7 +73,7 @@ clipper.add_path(&a, PolyType::Subject, true)?;
 clipper.add_path(&b, PolyType::Subject, true)?;
 
 let solution = clipper.execute(ClipType::Union, PolyFillType::NonZero)?;
-# Ok::<(), clipper_rust::ClipperError>(())
+# Ok::<(), geo_clipper_pure_rs::ClipperError>(())
 ```
 
 Inputs are accepted as slices where possible, and normal execution methods return
@@ -83,7 +85,7 @@ paths that were skipped.
 Options use a builder-style value:
 
 ```rust
-use clipper_rust::{Clipper, ClipperOptions};
+use geo_clipper_pure_rs::{Clipper, ClipperOptions};
 
 let mut clipper = Clipper::with_options(
     ClipperOptions::new()

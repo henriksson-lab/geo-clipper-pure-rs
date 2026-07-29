@@ -154,7 +154,7 @@ impl Clipper {
         subj_fill_type: PolyFillType,
         clip_fill_type: PolyFillType,
     ) -> Result<Paths> {
-        let mut solution = Vec::new();
+        let mut solution = Paths::new();
         self.execute_into_with_fill_types(
             clip_type,
             &mut solution,
@@ -1857,7 +1857,7 @@ impl Clipper {
                 if cnt < 2 {
                     continue;
                 }
-                let mut pg = Vec::with_capacity(cnt);
+                let mut pg = Path::with_capacity(cnt);
                 for _ in 0..cnt {
                     pg.push((*p).pt);
                     p = (*p).prev;
@@ -1885,10 +1885,10 @@ impl Clipper {
                 (*outrec).poly_nd = pn;
                 (*pn).parent = ptr::null_mut();
                 (*pn).index = 0;
-                (*pn).contour.reserve(cnt);
+                (&mut (*pn).contour).reserve(cnt);
                 let mut op = (*(*outrec).pts).prev;
                 for _ in 0..cnt {
-                    (*pn).contour.push((*op).pt);
+                    (&mut (*pn).contour).push((*op).pt);
                     op = (*op).prev;
                 }
             }
@@ -2735,7 +2735,7 @@ mod tests {
                 false,
             )
             .unwrap();
-        let mut solution = Vec::new();
+        let mut solution = Paths::new();
 
         let err = clipper
             .execute_into(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
@@ -2770,7 +2770,7 @@ mod tests {
 
         assert_eq!(polytree.total(), 1);
         unsafe {
-            assert_eq!((*polytree.get_first()).contour.len(), 4);
+            assert_eq!((&(*polytree.get_first()).contour).len(), 4);
             assert!(!(*polytree.get_first()).is_open());
         }
     }
@@ -2796,8 +2796,8 @@ mod tests {
         unsafe {
             assert!((*first).is_open());
             assert_eq!(
-                (*first).contour,
-                vec![IntPoint::new(0, 10), IntPoint::new(10, 0)]
+                (&(*first).contour).as_ref(),
+                &[IntPoint::new(0, 10), IntPoint::new(10, 0)]
             );
         }
     }
@@ -2817,7 +2817,7 @@ mod tests {
                 true,
             )
             .unwrap();
-        let mut solution = vec![vec![IntPoint::new(1, 1)]];
+        let mut solution = Paths::from(vec![vec![IntPoint::new(1, 1)]]);
 
         clipper
             .execute_into(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
@@ -2860,7 +2860,7 @@ mod tests {
                 true,
             )
             .unwrap();
-        let mut solution = Vec::new();
+        let mut solution = Paths::new();
 
         clipper
             .execute_into(ClipType::Union, &mut solution, PolyFillType::NonZero)
@@ -2885,7 +2885,7 @@ mod tests {
                 true,
             )
             .unwrap();
-        let mut solution = Vec::new();
+        let mut solution = Paths::new();
 
         clipper
             .execute_into(ClipType::Union, &mut solution, PolyFillType::EvenOdd)
@@ -3601,7 +3601,7 @@ mod tests {
 
             assert_eq!(point_count((*outrec).pts), 3);
 
-            let mut paths = Vec::new();
+            let mut paths = Paths::new();
             clipper.build_result(&mut paths);
 
             assert_eq!(

@@ -1,8 +1,262 @@
+use std::ops::{Deref, DerefMut};
 use std::ptr;
 
 pub type CInt = i64;
-pub type Path = Vec<IntPoint>;
-pub type Paths = Vec<Path>;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Path(Vec<IntPoint>);
+
+impl Path {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    pub fn into_vec(self) -> Vec<IntPoint> {
+        self.0
+    }
+
+    pub fn reserve(&mut self, additional: usize) {
+        self.0.reserve(additional);
+    }
+
+    pub fn push(&mut self, point: IntPoint) {
+        self.0.push(point);
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn extend_from_slice(&mut self, points: &[IntPoint]) {
+        self.0.extend_from_slice(points);
+    }
+}
+
+impl Deref for Path {
+    type Target = [IntPoint];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Path {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AsRef<[IntPoint]> for Path {
+    fn as_ref(&self) -> &[IntPoint] {
+        &self.0
+    }
+}
+
+impl AsMut<[IntPoint]> for Path {
+    fn as_mut(&mut self) -> &mut [IntPoint] {
+        &mut self.0
+    }
+}
+
+impl From<Vec<IntPoint>> for Path {
+    fn from(points: Vec<IntPoint>) -> Self {
+        Self(points)
+    }
+}
+
+impl From<Path> for Vec<IntPoint> {
+    fn from(path: Path) -> Self {
+        path.0
+    }
+}
+
+impl PartialEq<Vec<IntPoint>> for Path {
+    fn eq(&self, other: &Vec<IntPoint>) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<Path> for Vec<IntPoint> {
+    fn eq(&self, other: &Path) -> bool {
+        *self == other.0
+    }
+}
+
+impl FromIterator<IntPoint> for Path {
+    fn from_iter<T: IntoIterator<Item = IntPoint>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl Extend<IntPoint> for Path {
+    fn extend<T: IntoIterator<Item = IntPoint>>(&mut self, iter: T) {
+        self.0.extend(iter);
+    }
+}
+
+impl IntoIterator for Path {
+    type Item = IntPoint;
+    type IntoIter = std::vec::IntoIter<IntPoint>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Path {
+    type Item = &'a IntPoint;
+    type IntoIter = std::slice::Iter<'a, IntPoint>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Path {
+    type Item = &'a mut IntPoint;
+    type IntoIter = std::slice::IterMut<'a, IntPoint>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Paths(Vec<Path>);
+
+impl Paths {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    pub fn into_vec(self) -> Vec<Path> {
+        self.0
+    }
+
+    pub fn reserve(&mut self, additional: usize) {
+        self.0.reserve(additional);
+    }
+
+    pub fn push<P: Into<Path>>(&mut self, path: P) {
+        self.0.push(path.into());
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn remove(&mut self, index: usize) -> Path {
+        self.0.remove(index)
+    }
+}
+
+impl Deref for Paths {
+    type Target = [Path];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Paths {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AsRef<[Path]> for Paths {
+    fn as_ref(&self) -> &[Path] {
+        &self.0
+    }
+}
+
+impl AsMut<[Path]> for Paths {
+    fn as_mut(&mut self) -> &mut [Path] {
+        &mut self.0
+    }
+}
+
+impl From<Vec<Path>> for Paths {
+    fn from(paths: Vec<Path>) -> Self {
+        Self(paths)
+    }
+}
+
+impl From<Vec<Vec<IntPoint>>> for Paths {
+    fn from(paths: Vec<Vec<IntPoint>>) -> Self {
+        Self(paths.into_iter().map(Path::from).collect())
+    }
+}
+
+impl From<Paths> for Vec<Path> {
+    fn from(paths: Paths) -> Self {
+        paths.0
+    }
+}
+
+impl PartialEq<Vec<Vec<IntPoint>>> for Paths {
+    fn eq(&self, other: &Vec<Vec<IntPoint>>) -> bool {
+        self.0.len() == other.len()
+            && self
+                .0
+                .iter()
+                .zip(other.iter())
+                .all(|(left, right)| left == right)
+    }
+}
+
+impl PartialEq<Paths> for Vec<Vec<IntPoint>> {
+    fn eq(&self, other: &Paths) -> bool {
+        other == self
+    }
+}
+
+impl FromIterator<Path> for Paths {
+    fn from_iter<T: IntoIterator<Item = Path>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl Extend<Path> for Paths {
+    fn extend<T: IntoIterator<Item = Path>>(&mut self, iter: T) {
+        self.0.extend(iter);
+    }
+}
+
+impl IntoIterator for Paths {
+    type Item = Path;
+    type IntoIter = std::vec::IntoIter<Path>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Paths {
+    type Item = &'a Path;
+    type IntoIter = std::slice::Iter<'a, Path>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Paths {
+    type Item = &'a mut Path;
+    type IntoIter = std::slice::IterMut<'a, Path>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
 
 pub const CLIPPER_VERSION: &str = "6.4.2";
 pub const LO_RANGE: CInt = 0x3FFF_FFFF;
@@ -333,7 +587,7 @@ pub struct PolyNode {
 impl Default for PolyNode {
     fn default() -> Self {
         Self {
-            contour: Vec::new(),
+            contour: Path::new(),
             childs: Vec::new(),
             parent: ptr::null_mut(),
             index: 0,

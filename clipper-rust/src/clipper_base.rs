@@ -49,7 +49,15 @@ impl OutPtArena {
             self.next = 0;
         }
 
-        let ptr = self.blocks.last_mut().unwrap()[self.next].as_mut_ptr();
+        let block_index = self.blocks.len() - 1;
+        // SAFETY: a block is pushed above when `next == OUT_PT_BLOCK_SIZE`, so
+        // `block_index` exists and `next < OUT_PT_BLOCK_SIZE` here.
+        let ptr = unsafe {
+            self.blocks
+                .get_unchecked_mut(block_index)
+                .get_unchecked_mut(self.next)
+                .as_mut_ptr()
+        };
         self.next += 1;
         unsafe {
             ptr.write(out_pt);

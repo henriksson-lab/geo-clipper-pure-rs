@@ -806,12 +806,15 @@ impl Clipper {
         unsafe {
             let mut e = self.base.active_edges;
             self.sorted_edges = e;
+            let mut active_count = 0usize;
             while !e.is_null() {
+                active_count += 1;
                 (*e).prev_in_sel = (*e).prev_in_ael;
                 (*e).next_in_sel = (*e).next_in_ael;
                 (*e).curr.x = top_x(&*e, top_y);
                 e = (*e).next_in_ael;
             }
+            self.intersect_list.reserve(active_count / 2);
 
             loop {
                 let mut is_modified = false;
@@ -1254,7 +1257,7 @@ impl Clipper {
     pub unsafe fn process_intersect_list(&mut self) {
         let cnt = self.intersect_list.len();
         for i in 0..cnt {
-            let node = self.intersect_list[i];
+            let node = unsafe { *self.intersect_list.get_unchecked(i) };
             unsafe {
                 self.intersect_edges(node.edge1, node.edge2, node.pt);
                 self.base.swap_positions_in_ael(node.edge1, node.edge2);
@@ -1275,9 +1278,9 @@ impl Clipper {
 
             let cnt = self.intersect_list.len();
             for i in 0..cnt {
-                if !edges_adjacent(&self.intersect_list[i]) {
+                if !edges_adjacent(self.intersect_list.get_unchecked(i)) {
                     let mut j = i + 1;
-                    while j < cnt && !edges_adjacent(&self.intersect_list[j]) {
+                    while j < cnt && !edges_adjacent(self.intersect_list.get_unchecked(j)) {
                         j += 1;
                     }
                     if j == cnt {
@@ -1285,7 +1288,7 @@ impl Clipper {
                     }
                     self.intersect_list.swap(i, j);
                 }
-                let inode = &self.intersect_list[i];
+                let inode = self.intersect_list.get_unchecked(i);
                 self.swap_positions_in_sel(inode.edge1, inode.edge2);
             }
         }

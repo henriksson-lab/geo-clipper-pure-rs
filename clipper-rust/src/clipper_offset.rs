@@ -299,7 +299,8 @@ impl ClipperOffset {
         for i in 0..self.poly_nodes.child_count() {
             unsafe {
                 let node = &*self.poly_nodes.childs[i];
-                self.src_poly = node.contour.clone();
+                self.src_poly.clear();
+                self.src_poly.extend_from_slice(&node.contour);
 
                 let len = self.src_poly.len();
                 if len == 0 || (delta <= 0.0 && (len < 3 || node.endtype != EndType::ClosedPolygon))

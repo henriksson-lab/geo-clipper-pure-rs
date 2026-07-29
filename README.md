@@ -139,21 +139,21 @@ case,parity,rust_elapsed_ms,cpp_elapsed_ms,rust_wall_s,cpp_wall_s,rust_rss_kb,cp
 
 Per-engine raw outputs are written to `clipper-rust/target/bench/`.
 
-Latest local arena run, ten iterations per case:
+Latest local optimized run, ten iterations per case:
 
 | Case | Parity | Rust ms | C++ ms | Rust/C++ time | Rust RSS KB | C++ RSS KB | Rust/C++ RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `union_dense` | ok | 44.615 | 40.430 | 1.10x | 4800 | 6080 | 0.79x |
-| `touching_rect_grid` | ok | 256.359 | 309.865 | 0.83x | 10560 | 11840 | 0.89x |
-| `intersection_grid` | ok | 68.542 | 85.908 | 0.80x | 5120 | 6468 | 0.79x |
-| `difference_holes` | ok | 28.965 | 32.821 | 0.88x | 3840 | 5120 | 0.75x |
-| `nested_holes` | ok | 33.564 | 34.689 | 0.97x | 4160 | 5440 | 0.76x |
-| `strict_simple_stars` | ok | 106.079 | 116.587 | 0.91x | 5308 | 7040 | 0.75x |
-| `open_paths_clip` | ok | 48.396 | 48.603 | 1.00x | 2560 | 4160 | 0.62x |
-| `large_coord_xor` | ok | 40.688 | 47.965 | 0.85x | 4160 | 5760 | 0.72x |
-| `offset_stars` | ok | 625.978 | 804.843 | 0.78x | 30720 | 32016 | 0.96x |
-| `offset_open_round` | ok | 194.720 | 165.326 | 1.18x | 4480 | 5760 | 0.78x |
-| `polytree_closed_nested` | ok | 13.107 | 20.001 | 0.66x | 2880 | 4160 | 0.69x |
+| `union_dense` | ok | 40.010 | 45.703 | 0.88x | 4800 | 6080 | 0.79x |
+| `touching_rect_grid` | ok | 303.799 | 367.702 | 0.83x | 10560 | 11840 | 0.89x |
+| `intersection_grid` | ok | 70.188 | 93.783 | 0.75x | 5120 | 6280 | 0.82x |
+| `difference_holes` | ok | 28.656 | 34.149 | 0.84x | 3840 | 5120 | 0.75x |
+| `nested_holes` | ok | 36.701 | 34.965 | 1.05x | 4160 | 5440 | 0.76x |
+| `strict_simple_stars` | ok | 117.222 | 133.531 | 0.88x | 5304 | 7040 | 0.75x |
+| `open_paths_clip` | ok | 54.126 | 50.936 | 1.06x | 2560 | 4160 | 0.62x |
+| `large_coord_xor` | ok | 42.801 | 49.126 | 0.87x | 4160 | 5760 | 0.72x |
+| `offset_stars` | ok | 722.345 | 852.100 | 0.85x | 31040 | 32004 | 0.97x |
+| `offset_open_round` | ok | 209.596 | 205.868 | 1.02x | 4480 | 5760 | 0.78x |
+| `polytree_closed_nested` | ok | 14.665 | 18.130 | 0.81x | 2880 | 4160 | 0.69x |
 
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.
@@ -179,3 +179,5 @@ Arena migration comparison against the prior pointer-allocation Rust baseline:
 The original staged plan is saved in `RUST_PORT_PLAN.md`.
 
 The arena migration plan is saved in `ARENA_MIGRATION_PLAN.md`.
+
+The non-1:1 optimization plan is saved in `RUST_OPTIMIZATION_PLAN.md`.

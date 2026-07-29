@@ -784,14 +784,14 @@ impl Clipper {
                 if start_edge.is_null() {
                     start_edge = self.base.active_edges;
                 }
-                while !(*start_edge).next_in_ael.is_null()
-                    && !e2_inserts_before_e1(&*(*start_edge).next_in_ael, &*edge)
-                {
-                    start_edge = (*start_edge).next_in_ael;
+                let mut next = (*start_edge).next_in_ael;
+                while !next.is_null() && !e2_inserts_before_e1(&*next, &*edge) {
+                    start_edge = next;
+                    next = (*start_edge).next_in_ael;
                 }
-                (*edge).next_in_ael = (*start_edge).next_in_ael;
-                if !(*start_edge).next_in_ael.is_null() {
-                    (*(*start_edge).next_in_ael).prev_in_ael = edge;
+                (*edge).next_in_ael = next;
+                if !next.is_null() {
+                    (*next).prev_in_ael = edge;
                 }
                 (*edge).prev_in_ael = start_edge;
                 (*start_edge).next_in_ael = edge;
@@ -1449,30 +1449,32 @@ impl Clipper {
     // C++: Clipper::SetWindingCount
     pub unsafe fn set_winding_count(&mut self, edge: *mut TEdge) {
         unsafe {
+            let edge_poly_typ = (*edge).poly_typ;
+            let edge_wind_delta = (*edge).wind_delta;
             let mut e = (*edge).prev_in_ael;
-            while !e.is_null() && ((*e).poly_typ != (*edge).poly_typ || (*e).wind_delta == 0) {
+            while !e.is_null() && ((*e).poly_typ != edge_poly_typ || (*e).wind_delta == 0) {
                 e = (*e).prev_in_ael;
             }
 
             if e.is_null() {
-                if (*edge).wind_delta == 0 {
-                    let pft = if (*edge).poly_typ == PolyType::Subject {
+                if edge_wind_delta == 0 {
+                    let pft = if edge_poly_typ == PolyType::Subject {
                         self.subj_fill_type
                     } else {
                         self.clip_fill_type
                     };
                     (*edge).wind_cnt = if pft == PolyFillType::Negative { -1 } else { 1 };
                 } else {
-                    (*edge).wind_cnt = (*edge).wind_delta;
+                    (*edge).wind_cnt = edge_wind_delta;
                 }
                 (*edge).wind_cnt2 = 0;
                 e = self.base.active_edges;
-            } else if (*edge).wind_delta == 0 && self.clip_type != ClipType::Union {
+            } else if edge_wind_delta == 0 && self.clip_type != ClipType::Union {
                 (*edge).wind_cnt = 1;
                 (*edge).wind_cnt2 = (*e).wind_cnt2;
                 e = (*e).next_in_ael;
             } else if self.is_even_odd_fill_type(&*edge) {
-                if (*edge).wind_delta == 0 {
+                if edge_wind_delta == 0 {
                     let mut inside = true;
                     let mut e2 = (*e).prev_in_ael;
                     while !e2.is_null() {
@@ -1483,35 +1485,35 @@ impl Clipper {
                     }
                     (*edge).wind_cnt = if inside { 0 } else { 1 };
                 } else {
-                    (*edge).wind_cnt = (*edge).wind_delta;
+                    (*edge).wind_cnt = edge_wind_delta;
                 }
                 (*edge).wind_cnt2 = (*e).wind_cnt2;
                 e = (*e).next_in_ael;
             } else {
                 if (*e).wind_cnt * (*e).wind_delta < 0 {
                     if (*e).wind_cnt.abs() > 1 {
-                        if (*e).wind_delta * (*edge).wind_delta < 0 {
+                        if (*e).wind_delta * edge_wind_delta < 0 {
                             (*edge).wind_cnt = (*e).wind_cnt;
                         } else {
-                            (*edge).wind_cnt = (*e).wind_cnt + (*edge).wind_delta;
+                            (*edge).wind_cnt = (*e).wind_cnt + edge_wind_delta;
                         }
                     } else {
-                        (*edge).wind_cnt = if (*edge).wind_delta == 0 {
+                        (*edge).wind_cnt = if edge_wind_delta == 0 {
                             1
                         } else {
-                            (*edge).wind_delta
+                            edge_wind_delta
                         };
                     }
-                } else if (*edge).wind_delta == 0 {
+                } else if edge_wind_delta == 0 {
                     (*edge).wind_cnt = if (*e).wind_cnt < 0 {
                         (*e).wind_cnt - 1
                     } else {
                         (*e).wind_cnt + 1
                     };
-                } else if (*e).wind_delta * (*edge).wind_delta < 0 {
+                } else if (*e).wind_delta * edge_wind_delta < 0 {
                     (*edge).wind_cnt = (*e).wind_cnt;
                 } else {
-                    (*edge).wind_cnt = (*e).wind_cnt + (*edge).wind_delta;
+                    (*edge).wind_cnt = (*e).wind_cnt + edge_wind_delta;
                 }
                 (*edge).wind_cnt2 = (*e).wind_cnt2;
                 e = (*e).next_in_ael;

@@ -143,17 +143,17 @@ Latest local optimized run, ten iterations per case:
 
 | Case | Parity | Rust ms | C++ ms | Rust/C++ time | Rust RSS KB | C++ RSS KB | Rust/C++ RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `union_dense` | ok | 43.403 | 50.346 | 0.86x | 4800 | 6080 | 0.79x |
-| `touching_rect_grid` | ok | 254.326 | 299.636 | 0.85x | 10560 | 11760 | 0.90x |
-| `intersection_grid` | ok | 66.824 | 89.390 | 0.75x | 4980 | 6276 | 0.79x |
-| `difference_holes` | ok | 31.848 | 35.818 | 0.89x | 3840 | 5120 | 0.75x |
-| `nested_holes` | ok | 32.152 | 37.981 | 0.85x | 4160 | 5440 | 0.76x |
-| `strict_simple_stars` | ok | 104.186 | 122.759 | 0.85x | 5316 | 7040 | 0.76x |
-| `open_paths_clip` | ok | 42.437 | 47.989 | 0.88x | 2560 | 4160 | 0.62x |
-| `large_coord_xor` | ok | 39.650 | 47.685 | 0.83x | 4160 | 5760 | 0.72x |
-| `offset_stars` | ok | 600.873 | 785.289 | 0.77x | 31040 | 32108 | 0.97x |
-| `offset_open_round` | ok | 148.634 | 184.993 | 0.80x | 4480 | 6080 | 0.74x |
-| `polytree_closed_nested` | ok | 16.012 | 20.558 | 0.78x | 2880 | 4480 | 0.64x |
+| `union_dense` | ok | 49.724 | 53.480 | 0.93x | 4800 | 6080 | 0.79x |
+| `touching_rect_grid` | ok | 264.559 | 309.170 | 0.86x | 10560 | 11840 | 0.89x |
+| `intersection_grid` | ok | 65.743 | 90.989 | 0.72x | 5120 | 6280 | 0.82x |
+| `difference_holes` | ok | 30.944 | 33.481 | 0.92x | 3840 | 5440 | 0.71x |
+| `nested_holes` | ok | 31.224 | 24.572 | 1.27x | 4160 | 5760 | 0.72x |
+| `strict_simple_stars` | ok | 108.279 | 122.269 | 0.89x | 5312 | 7040 | 0.75x |
+| `open_paths_clip` | ok | 50.236 | 50.605 | 0.99x | 2560 | 4160 | 0.62x |
+| `large_coord_xor` | ok | 40.484 | 49.660 | 0.82x | 4160 | 5440 | 0.76x |
+| `offset_stars` | ok | 650.295 | 750.216 | 0.87x | 30720 | 32076 | 0.96x |
+| `offset_open_round` | ok | 150.081 | 179.203 | 0.84x | 4480 | 6080 | 0.74x |
+| `polytree_closed_nested` | ok | 17.139 | 26.048 | 0.66x | 2880 | 4160 | 0.69x |
 
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.

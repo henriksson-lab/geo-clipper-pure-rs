@@ -241,3 +241,29 @@ Validation run:
 - `cargo clippy --manifest-path clipper-rust/Cargo.toml --all-targets -- -D warnings`
 - `cargo test --manifest-path clipper-rust/Cargo.toml`
 - `bash bench/run_benchmarks.sh 10`
+
+## Attempt 3 Outcome
+
+Status: retained.
+
+Change:
+
+- `insert_edge_into_ael` now caches the searched `next_in_ael` link while walking
+  to the insertion point, avoiding repeated loads of the same link.
+- `set_winding_count` now hoists `edge.poly_typ` and `edge.wind_delta` into local
+  values. These fields are read many times and are not changed by the routine.
+
+Why retained:
+
+- The change preserves `e2_inserts_before_e1` ordering and winding formulas.
+- The default benchmark suite passed strict parity.
+- Focused insertion and winding tests passed.
+- Benchmark impact was small and noisy; this is retained as a local cleanup with
+  no observed parity or RSS regression, not as a major speedup.
+
+Validation run:
+
+- `cargo fmt --manifest-path clipper-rust/Cargo.toml --check`
+- `cargo clippy --manifest-path clipper-rust/Cargo.toml --all-targets -- -D warnings`
+- `cargo test --manifest-path clipper-rust/Cargo.toml`
+- `bash bench/run_benchmarks.sh 10`

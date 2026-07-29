@@ -208,3 +208,36 @@ Validation run:
 - `cargo clippy --manifest-path clipper-rust/Cargo.toml --all-targets -- -D warnings`
 - `cargo test --manifest-path clipper-rust/Cargo.toml`
 - `bash bench/run_benchmarks.sh 10`
+
+## Attempt 2 Outcome
+
+Status: retained.
+
+Change:
+
+- Added a small-list insertion sort path for `fixup_intersection_order` when the
+  intersection list has at most 16 nodes.
+- Larger lists still use `sort_unstable_by` with the same descending-`Y`
+  comparator as before.
+
+Why retained:
+
+- The default benchmark suite passed strict parity.
+- The focus cases improved versus the prior README table in this local run.
+- The change is local to sorting by `Y`; it does not alter adjacency repair or
+  SEL swap order after sorting.
+
+Diagnostic note:
+
+- `jittered_sliver_union_56` remains outside the default parity set. In the
+  diagnostic run, Rust reported `paths=1076 points=5780 area_abs=554810.000
+  checksum=230362069`, while C++ reported `paths=1076 points=5763
+  area_abs=554834.000 checksum=229692153`. This remains consistent with the
+  known equal-scanline tie limitation and is not a retained default benchmark.
+
+Validation run:
+
+- `cargo fmt --manifest-path clipper-rust/Cargo.toml --check`
+- `cargo clippy --manifest-path clipper-rust/Cargo.toml --all-targets -- -D warnings`
+- `cargo test --manifest-path clipper-rust/Cargo.toml`
+- `bash bench/run_benchmarks.sh 10`

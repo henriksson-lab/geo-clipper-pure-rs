@@ -1271,11 +1271,7 @@ impl Clipper {
     pub unsafe fn fixup_intersection_order(&mut self) -> bool {
         unsafe {
             self.copy_ael_to_sel();
-            self.intersect_list.sort_unstable_by(|node1, node2| {
-                let y1 = node1.pt.y;
-                let y2 = node2.pt.y;
-                y2.cmp(&y1)
-            });
+            sort_intersect_list_by_descending_y(&mut self.intersect_list);
 
             let cnt = self.intersect_list.len();
             for i in 0..cnt {
@@ -2260,6 +2256,22 @@ unsafe fn get_lowermost_rec(out_rec1: *mut OutRec, out_rec2: *mut OutRec) -> *mu
         } else {
             out_rec2
         }
+    }
+}
+
+fn sort_intersect_list_by_descending_y(intersect_list: &mut [IntersectNode]) {
+    if intersect_list.len() <= 16 {
+        for i in 1..intersect_list.len() {
+            let node = intersect_list[i];
+            let mut j = i;
+            while j > 0 && intersect_list[j - 1].pt.y < node.pt.y {
+                intersect_list[j] = intersect_list[j - 1];
+                j -= 1;
+            }
+            intersect_list[j] = node;
+        }
+    } else {
+        intersect_list.sort_unstable_by(|node1, node2| node2.pt.y.cmp(&node1.pt.y));
     }
 }
 

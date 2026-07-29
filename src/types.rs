@@ -18,6 +18,53 @@ pub const TOLERANCE: f64 = 1.0E-20;
 pub const UNASSIGNED: i32 = -1;
 pub const SKIP: i32 = -2;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum AddPathResult {
+    Added,
+    Skipped,
+}
+
+impl AddPathResult {
+    pub fn was_added(self) -> bool {
+        self == Self::Added
+    }
+}
+
+impl From<bool> for AddPathResult {
+    fn from(added: bool) -> Self {
+        if added { Self::Added } else { Self::Skipped }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Orientation {
+    Clockwise,
+    CounterClockwise,
+}
+
+impl Orientation {
+    pub fn is_counter_clockwise(self) -> bool {
+        self == Self::CounterClockwise
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PointLocation {
+    Outside,
+    Inside,
+    Boundary,
+}
+
+impl PointLocation {
+    pub fn from_clipper_code(code: i32) -> Self {
+        match code {
+            1 => Self::Inside,
+            -1 => Self::Boundary,
+            _ => Self::Outside,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct IntPoint {
     pub x: CInt,

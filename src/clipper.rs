@@ -9,8 +9,8 @@ use crate::helpers::{
     slopes_equal_4_points, swap_poly_indexes, swap_sides, top_x,
 };
 use crate::types::{
-    CInt, ClipType, Direction, EdgeSide, IntPoint, IntersectNode, Join, OutPt, OutRec, Path, Paths,
-    PolyFillType, PolyNode, PolyTree, PolyType, SKIP, TEdge, UNASSIGNED,
+    AddPathResult, CInt, ClipType, Direction, EdgeSide, IntPoint, IntersectNode, Join, OutPt,
+    OutRec, Path, Paths, PolyFillType, PolyNode, PolyTree, PolyType, SKIP, TEdge, UNASSIGNED,
 };
 
 #[derive(Debug)]
@@ -33,9 +33,30 @@ pub struct Clipper {
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub struct ClipperOptions {
-    pub reverse_solution: bool,
-    pub strictly_simple: bool,
-    pub preserve_collinear: bool,
+    reverse_solution: bool,
+    strictly_simple: bool,
+    preserve_collinear: bool,
+}
+
+impl ClipperOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn reverse_solution(mut self, value: bool) -> Self {
+        self.reverse_solution = value;
+        self
+    }
+
+    pub fn strictly_simple(mut self, value: bool) -> Self {
+        self.strictly_simple = value;
+        self
+    }
+
+    pub fn preserve_collinear(mut self, value: bool) -> Self {
+        self.preserve_collinear = value;
+        self
+    }
 }
 
 impl Default for Clipper {
@@ -97,12 +118,26 @@ impl Clipper {
         self.base.set_preserve_collinear(value);
     }
 
-    pub fn add_path(&mut self, pg: &[IntPoint], poly_type: PolyType, closed: bool) -> Result<bool> {
-        self.base.add_path(pg, poly_type, closed)
+    pub fn add_path(
+        &mut self,
+        pg: &[IntPoint],
+        poly_type: PolyType,
+        closed: bool,
+    ) -> Result<AddPathResult> {
+        self.base
+            .add_path(pg, poly_type, closed)
+            .map(AddPathResult::from)
     }
 
-    pub fn add_paths(&mut self, ppg: &[Path], poly_type: PolyType, closed: bool) -> Result<bool> {
-        self.base.add_paths(ppg, poly_type, closed)
+    pub fn add_paths(
+        &mut self,
+        ppg: &[Path],
+        poly_type: PolyType,
+        closed: bool,
+    ) -> Result<AddPathResult> {
+        self.base
+            .add_paths(ppg, poly_type, closed)
+            .map(AddPathResult::from)
     }
 
     pub fn bounds(&self) -> crate::types::IntRect {
@@ -2663,11 +2698,12 @@ mod tests {
 
     #[test]
     fn constructor_applies_options() {
-        let clipper = Clipper::with_options(ClipperOptions {
-            reverse_solution: true,
-            strictly_simple: true,
-            preserve_collinear: true,
-        });
+        let clipper = Clipper::with_options(
+            ClipperOptions::new()
+                .reverse_solution(true)
+                .strictly_simple(true)
+                .preserve_collinear(true),
+        );
 
         assert!(clipper.reverse_solution());
         assert!(clipper.strictly_simple());
@@ -2836,10 +2872,7 @@ mod tests {
 
     #[test]
     fn execute_strict_simple_no_longer_hits_unported_boundary() {
-        let mut clipper = Clipper::with_options(ClipperOptions {
-            strictly_simple: true,
-            ..ClipperOptions::default()
-        });
+        let mut clipper = Clipper::with_options(ClipperOptions::new().strictly_simple(true));
         clipper
             .add_path(
                 &vec![

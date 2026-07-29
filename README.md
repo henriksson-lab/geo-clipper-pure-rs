@@ -31,7 +31,6 @@ The original code defines features based on DEFINE's. Translation is made assumi
 ## Crate
 
 ```bash
-cd clipper-rust
 cargo test
 ```
 
@@ -43,8 +42,11 @@ Main public types and functions:
 
 - `Clipper`, `ClipperOptions`, and `ClipperOffset`
 - `IntPoint`, `IntRect`, `Path`, `Paths`, and Clipper enums
-- helpers such as `area`, `orientation`, `point_in_polygon`, simplification,
-  cleaning, Minkowski operations, and `PolyTree` path extraction
+- typed status/query results such as `AddPathResult`, `Orientation`, and
+  `PointLocation`
+- helpers such as `area`, `orientation`, `is_counter_clockwise`,
+  `point_in_polygon`, simplification, cleaning, Minkowski operations, and
+  `PolyTree` path extraction
 
 Example:
 
@@ -74,7 +76,21 @@ let solution = clipper.execute(ClipType::Union, PolyFillType::NonZero)?;
 
 Inputs are accepted as slices where possible, and normal execution methods return
 owned `Paths` or `PolyTree` values. `_into` variants are available when callers want
-to reuse output allocations.
+to reuse output allocations. `add_path` and `add_paths` return `AddPathResult`
+so callers can distinguish paths that were inserted from valid-but-degenerate
+paths that were skipped.
+
+Options use a builder-style value:
+
+```rust
+use clipper_rust::{Clipper, ClipperOptions};
+
+let mut clipper = Clipper::with_options(
+    ClipperOptions::new()
+        .strictly_simple(true)
+        .preserve_collinear(true),
+);
+```
 
 ## Validation
 
@@ -142,23 +158,23 @@ Output is CSV:
 case,parity,rust_elapsed_ms,cpp_elapsed_ms,rust_wall_s,cpp_wall_s,rust_rss_kb,cpp_rss_kb,rust_paths,cpp_paths,rust_points,cpp_points,rust_area_abs,cpp_area_abs,rust_checksum,cpp_checksum
 ```
 
-Per-engine raw outputs are written to `clipper-rust/target/bench/`.
+Per-engine raw outputs are written to `target/bench/`.
 
 Latest local optimized run, ten iterations per case:
 
 | Case | Parity | Rust ms | C++ ms | Rust/C++ time | Rust RSS KB | C++ RSS KB | Rust/C++ RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `union_dense` | ok | 46.125 | 53.963 | 0.85x | 4800 | 6400 | 0.75x |
-| `touching_rect_grid` | ok | 275.236 | 312.947 | 0.88x | 10560 | 11840 | 0.89x |
-| `intersection_grid` | ok | 68.139 | 84.233 | 0.81x | 5120 | 6468 | 0.79x |
-| `difference_holes` | ok | 28.038 | 35.449 | 0.79x | 3840 | 5440 | 0.71x |
-| `nested_holes` | ok | 32.897 | 34.416 | 0.96x | 4160 | 5440 | 0.76x |
-| `strict_simple_stars` | ok | 105.871 | 119.211 | 0.89x | 5316 | 7040 | 0.76x |
-| `open_paths_clip` | ok | 47.700 | 51.367 | 0.93x | 2560 | 3840 | 0.67x |
-| `large_coord_xor` | ok | 40.880 | 44.111 | 0.93x | 4160 | 5440 | 0.76x |
-| `offset_stars` | ok | 588.735 | 737.871 | 0.80x | 31040 | 31948 | 0.97x |
-| `offset_open_round` | ok | 157.187 | 181.693 | 0.87x | 4480 | 6080 | 0.74x |
-| `polytree_closed_nested` | ok | 16.438 | 18.160 | 0.91x | 2880 | 4160 | 0.69x |
+| `union_dense` | ok | 48.200 | 49.476 | 0.97x | 4800 | 6080 | 0.79x |
+| `touching_rect_grid` | ok | 307.238 | 377.723 | 0.81x | 10560 | 11840 | 0.89x |
+| `intersection_grid` | ok | 61.964 | 85.752 | 0.72x | 5120 | 6468 | 0.79x |
+| `difference_holes` | ok | 29.599 | 33.683 | 0.88x | 3840 | 5120 | 0.75x |
+| `nested_holes` | ok | 31.965 | 35.227 | 0.91x | 4160 | 5760 | 0.72x |
+| `strict_simple_stars` | ok | 108.196 | 134.949 | 0.80x | 5316 | 7040 | 0.76x |
+| `open_paths_clip` | ok | 48.058 | 63.586 | 0.76x | 2560 | 3840 | 0.67x |
+| `large_coord_xor` | ok | 40.709 | 48.307 | 0.84x | 4160 | 5760 | 0.72x |
+| `offset_stars` | ok | 588.632 | 751.390 | 0.78x | 30720 | 32024 | 0.96x |
+| `offset_open_round` | ok | 166.786 | 186.774 | 0.89x | 4480 | 5760 | 0.78x |
+| `polytree_closed_nested` | ok | 14.870 | 18.421 | 0.81x | 2880 | 4160 | 0.69x |
 
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.

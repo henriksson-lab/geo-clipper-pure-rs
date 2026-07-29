@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-CRATE_DIR="${REPO_ROOT}/clipper-rust"
-OUT_DIR="${REPO_ROOT}/clipper-rust/target/bench"
+CRATE_DIR="${REPO_ROOT}"
+OUT_DIR="${REPO_ROOT}/target/bench"
 ITERATIONS="${1:-3}"
 
 CASES=(

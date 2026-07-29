@@ -60,7 +60,7 @@ int main() {
 }
 
 fn build_cpp_oracle(manifest_dir: &Path) -> Option<PathBuf> {
-    let repo_root = manifest_dir.parent()?;
+    let repo_root = manifest_dir;
     let out_dir = manifest_dir.join("target").join("cpp-conformance");
     fs::create_dir_all(&out_dir).ok()?;
     let source = out_dir.join("oracle.cpp");
@@ -83,7 +83,7 @@ fn build_cpp_oracle(manifest_dir: &Path) -> Option<PathBuf> {
 
 #[test]
 fn rust_matches_cpp_for_basic_union_and_offset_cases() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let Some(binary) = build_cpp_oracle(&manifest_dir) else {
         eprintln!("skipping C++ conformance test because oracle build failed");
         return;

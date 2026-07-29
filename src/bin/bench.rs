@@ -268,10 +268,7 @@ fn run_difference_holes() -> Summary {
 }
 
 fn run_strict_simple_stars() -> Summary {
-    let mut clipper = Clipper::with_options(ClipperOptions {
-        strictly_simple: true,
-        ..ClipperOptions::default()
-    });
+    let mut clipper = Clipper::with_options(ClipperOptions::new().strictly_simple(true));
     let subjects = star_grid(22, 22, 38, 20);
     clipper
         .add_paths(&subjects, PolyType::Subject, true)

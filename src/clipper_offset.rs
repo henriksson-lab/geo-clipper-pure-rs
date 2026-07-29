@@ -2,8 +2,8 @@ use crate::clipper::Clipper;
 use crate::error::Result;
 use crate::helpers::{get_unit_normal, near_zero, orientation, reverse_path, round};
 use crate::types::{
-    ClipType, DEF_ARC_TOLERANCE, DoublePoint, EndType, IntPoint, JoinType, PI, Path, Paths,
-    PolyFillType, PolyNode, PolyTree, PolyType, TWO_PI,
+    AddPathResult, ClipType, DEF_ARC_TOLERANCE, DoublePoint, EndType, IntPoint, JoinType,
+    Orientation, PI, Path, Paths, PolyFillType, PolyNode, PolyTree, PolyType, TWO_PI,
 };
 
 #[derive(Debug)]
@@ -64,10 +64,15 @@ impl ClipperOffset {
     }
 
     // C++: ClipperOffset::AddPath
-    pub fn add_path(&mut self, path: &[IntPoint], join_type: JoinType, end_type: EndType) {
+    pub fn add_path(
+        &mut self,
+        path: &[IntPoint],
+        join_type: JoinType,
+        end_type: EndType,
+    ) -> AddPathResult {
         let mut high_i = path.len();
         if high_i == 0 {
-            return;
+            return AddPathResult::Skipped;
         }
         high_i -= 1;
 
@@ -98,7 +103,7 @@ impl ClipperOffset {
         }
 
         if end_type == EndType::ClosedPolygon && j < 2 {
-            return;
+            return AddPathResult::Skipped;
         }
 
         let new_node_ptr = Box::into_raw(new_node);
@@ -107,7 +112,7 @@ impl ClipperOffset {
         }
 
         if end_type != EndType::ClosedPolygon {
-            return;
+            return AddPathResult::Added;
         }
         if self.lowest.x < 0 {
             self.lowest = IntPoint::new((self.poly_nodes.child_count() - 1) as i64, k as i64);
@@ -120,25 +125,37 @@ impl ClipperOffset {
                 self.lowest = IntPoint::new((self.poly_nodes.child_count() - 1) as i64, k as i64);
             }
         }
+        AddPathResult::Added
     }
 
     // C++: ClipperOffset::AddPaths
-    pub fn add_paths(&mut self, paths: &[Path], join_type: JoinType, end_type: EndType) {
+    pub fn add_paths(
+        &mut self,
+        paths: &[Path],
+        join_type: JoinType,
+        end_type: EndType,
+    ) -> AddPathResult {
+        let mut result = AddPathResult::Skipped;
         for path in paths {
-            self.add_path(path, join_type, end_type);
+            if self.add_path(path, join_type, end_type).was_added() {
+                result = AddPathResult::Added;
+            }
         }
+        result
     }
 
     // C++: ClipperOffset::FixOrientations
     unsafe fn fix_orientations(&mut self) {
         unsafe {
             if self.lowest.x >= 0
-                && !orientation(&(*self.poly_nodes.childs[self.lowest.x as usize]).contour)
+                && orientation(&(*self.poly_nodes.childs[self.lowest.x as usize]).contour)
+                    == Orientation::Clockwise
             {
                 for i in 0..self.poly_nodes.child_count() {
                     let node = &mut *self.poly_nodes.childs[i];
                     if node.endtype == EndType::ClosedPolygon
-                        || (node.endtype == EndType::ClosedLine && orientation(&node.contour))
+                        || (node.endtype == EndType::ClosedLine
+                            && orientation(&node.contour) == Orientation::CounterClockwise)
                     {
                         reverse_path(&mut node.contour);
                     }
@@ -146,7 +163,9 @@ impl ClipperOffset {
             } else {
                 for i in 0..self.poly_nodes.child_count() {
                     let node = &mut *self.poly_nodes.childs[i];
-                    if node.endtype == EndType::ClosedLine && !orientation(&node.contour) {
+                    if node.endtype == EndType::ClosedLine
+                        && orientation(&node.contour) == Orientation::Clockwise
+                    {
                         reverse_path(&mut node.contour);
                     }
                 }
@@ -625,11 +644,17 @@ mod tests {
                 JoinType::Square,
                 EndType::ClosedLine,
             );
-            assert!(!orientation(&(*offset.poly_nodes.childs[0]).contour));
+            assert_eq!(
+                orientation(&(*offset.poly_nodes.childs[0]).contour),
+                Orientation::Clockwise
+            );
 
             offset.fix_orientations();
 
-            assert!(orientation(&(*offset.poly_nodes.childs[0]).contour));
+            assert_eq!(
+                orientation(&(*offset.poly_nodes.childs[0]).contour),
+                Orientation::CounterClockwise
+            );
         }
     }
 

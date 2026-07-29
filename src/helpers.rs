@@ -1,8 +1,9 @@
 use crate::clipper::Clipper;
 use crate::error::{ClipperError, Result};
 use crate::types::{
-    CInt, ClipType, DoublePoint, HI_RANGE, HORIZONTAL, IntPoint, LO_RANGE, OutPt, Path, Paths,
-    PolyFillType, PolyNode, PolyTree, PolyType, TEdge, TOLERANCE, UNASSIGNED,
+    CInt, ClipType, DoublePoint, HI_RANGE, HORIZONTAL, IntPoint, LO_RANGE, Orientation, OutPt,
+    Path, Paths, PointLocation, PolyFillType, PolyNode, PolyTree, PolyType, TEdge, TOLERANCE,
+    UNASSIGNED,
 };
 
 pub fn near_zero(val: f64) -> bool {
@@ -80,12 +81,20 @@ pub unsafe fn point_is_vertex(pt: IntPoint, pp: *mut OutPt) -> bool {
 }
 
 // C++: Orientation
-pub fn orientation(poly: &[IntPoint]) -> bool {
-    area(poly) >= 0.0
+pub fn orientation(poly: &[IntPoint]) -> Orientation {
+    if area(poly) >= 0.0 {
+        Orientation::CounterClockwise
+    } else {
+        Orientation::Clockwise
+    }
+}
+
+pub fn is_counter_clockwise(poly: &[IntPoint]) -> bool {
+    orientation(poly).is_counter_clockwise()
 }
 
 // C++: PointInPolygon(const IntPoint&, const Path&)
-pub fn point_in_polygon(pt: IntPoint, path: &[IntPoint]) -> i32 {
+fn point_in_polygon_code(pt: IntPoint, path: &[IntPoint]) -> i32 {
     let mut result = 0;
     let cnt = path.len();
     if cnt < 3 {
@@ -128,6 +137,10 @@ pub fn point_in_polygon(pt: IntPoint, path: &[IntPoint]) -> i32 {
         ip = ip_next;
     }
     result
+}
+
+pub fn point_in_polygon(pt: IntPoint, path: &[IntPoint]) -> PointLocation {
+    PointLocation::from_clipper_code(point_in_polygon_code(pt, path))
 }
 
 // C++: PointInPolygon(const IntPoint&, OutPt*)
@@ -881,7 +894,7 @@ pub fn minkowski(
             quad.push(pp[(i + 1) % path_cnt][j % poly_cnt]);
             quad.push(pp[(i + 1) % path_cnt][(j + 1) % poly_cnt]);
             quad.push(pp[i % path_cnt][(j + 1) % poly_cnt]);
-            if !orientation(&quad) {
+            if orientation(&quad) == Orientation::Clockwise {
                 reverse_path(&mut quad);
             }
             solution.push(quad);
@@ -1064,9 +1077,11 @@ mod tests {
         ];
 
         assert_eq!(area(&ccw), 100.0);
-        assert!(orientation(&ccw));
+        assert_eq!(orientation(&ccw), Orientation::CounterClockwise);
+        assert!(is_counter_clockwise(&ccw));
         assert_eq!(area(&cw), -100.0);
-        assert!(!orientation(&cw));
+        assert_eq!(orientation(&cw), Orientation::Clockwise);
+        assert!(!is_counter_clockwise(&cw));
     }
 
     #[test]
@@ -1078,10 +1093,22 @@ mod tests {
             IntPoint::new(0, 10),
         ];
 
-        assert_eq!(point_in_polygon(IntPoint::new(5, 5), &square), 1);
-        assert_eq!(point_in_polygon(IntPoint::new(15, 5), &square), 0);
-        assert_eq!(point_in_polygon(IntPoint::new(10, 5), &square), -1);
-        assert_eq!(point_in_polygon(IntPoint::new(0, 0), &square), -1);
+        assert_eq!(
+            point_in_polygon(IntPoint::new(5, 5), &square),
+            PointLocation::Inside
+        );
+        assert_eq!(
+            point_in_polygon(IntPoint::new(15, 5), &square),
+            PointLocation::Outside
+        );
+        assert_eq!(
+            point_in_polygon(IntPoint::new(10, 5), &square),
+            PointLocation::Boundary
+        );
+        assert_eq!(
+            point_in_polygon(IntPoint::new(0, 0), &square),
+            PointLocation::Boundary
+        );
     }
 
     #[test]
@@ -1384,7 +1411,7 @@ mod tests {
         minkowski(&pattern, &path, &mut solution, true, false);
 
         assert_eq!(solution.len(), 6);
-        assert!(solution.iter().all(|path| orientation(path)));
+        assert!(solution.iter().all(|path| is_counter_clockwise(path)));
     }
 
     #[test]

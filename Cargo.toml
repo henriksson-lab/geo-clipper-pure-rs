@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 include = [
     "Cargo.toml",
+    "README.md",
     "src/**",
     "tests/**",
 ]

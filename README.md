@@ -1,21 +1,24 @@
 # clipper-rs
 
-Rust port of the C++ Clipper 6.4.2 polygon clipping library.
+Rust port of the C++ [Clipper](https://github.com/Geri-Borbas/Clipper) polygon clipping library. (vs 6.4.2, commit `d59f4d02e0d28fd7ee88d8b7dc93ff5f0806b7b2`.)
 
-The current crate lives in `clipper-rust/`. It ports the C++ library code only; demos,
-language bindings, and optional deprecated APIs are out of scope for now.
+* 2026-07-30: Initial port. Parity on this crate is tricky, see port design notes
 
-Source reference: the bundled C++ code is from
-[`Geri-Borbas/Clipper`](https://github.com/Geri-Borbas/Clipper) at commit
-`d59f4d02e0d28fd7ee88d8b7dc93ff5f0806b7b2`.
 
-## Port Status
 
-The first pass prioritized auditability over idiomatic ownership design. The Rust code
-keeps the C++ algorithm structure close enough to compare function-by-function, while
-using Rust names and safe public entry points where feasible.
+## Port design choices
 
-Current compatibility choices:
+The Clipper library does not perform precise clipping; if data contains ties, the result
+will vary depending on underlying C++ library implementation (e.g. unstable sort order).
+This is hard to replicate in Rust, and also not very meaningful; instead, the translation
+uses a stable sort, and while it will sometimes deviate vs the original C++ code, the
+output is guaranteed to be the same for future version of Rust.
+
+Memory allocation is done in an "arena" instead of pointers, improving cache locality
+and (often) speed. This also plays better with the memory model of Rust. Some hot code
+algorithms have been rewritten to better accomodate this data structure.
+
+The original code defines features based on DEFINE's. Translation is made assuming:
 
 - Coordinate type: `i64`
 - C++ `use_int32`: disabled
@@ -24,8 +27,6 @@ Current compatibility choices:
 - C++ `use_deprecated`: disabled
 - Internal linked structures currently use raw pointers
 
-The next cleanup phase can replace raw-pointer internals with arenas or index handles
-once conformance coverage is stronger.
 
 ## Crate
 
@@ -116,13 +117,6 @@ intersections only by `Y`, so equal-`Y` events can change output geometry depend
 on sort tie behavior. This affects both the original C++ implementation and this
 Rust translation.
 
-This port is not intended to provide perfect geometric precision. Clipper 6 is an
-integer polygon clipping algorithm that rounds intersection coordinates; exact
-geometry for highly ambiguous sliver cases is outside the scope of a translation.
-The current Rust code favors the faster unstable intersection sort, matching the
-performance-oriented behavior of the original rather than trying to repair
-precision limitations.
-
 Run all benchmark cases:
 
 ```bash
@@ -162,10 +156,3 @@ Latest local optimized run, ten iterations per case:
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.
 
-## Translation Plan
-
-The original staged plan is saved in `RUST_PORT_PLAN.md`.
-
-The arena migration plan is saved in `ARENA_MIGRATION_PLAN.md`.
-
-The non-1:1 optimization plan is saved in `RUST_OPTIMIZATION_PLAN.md`.

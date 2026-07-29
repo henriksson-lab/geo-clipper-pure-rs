@@ -2273,7 +2273,7 @@ fn sort_intersect_list_by_descending_y(intersect_list: &mut [IntersectNode]) {
             intersect_list[j] = node;
         }
     } else {
-        intersect_list.sort_unstable_by(|node1, node2| node2.pt.y.cmp(&node1.pt.y));
+        intersect_list.sort_by(|node1, node2| node2.pt.y.cmp(&node1.pt.y));
     }
 }
 

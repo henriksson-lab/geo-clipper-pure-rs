@@ -1267,7 +1267,7 @@ impl Clipper {
     pub unsafe fn fixup_intersection_order(&mut self) -> bool {
         unsafe {
             self.copy_ael_to_sel();
-            self.intersect_list.sort_by(|node1, node2| {
+            self.intersect_list.sort_unstable_by(|node1, node2| {
                 let y1 = (*(*node1)).pt.y;
                 let y2 = (*(*node2)).pt.y;
                 y2.cmp(&y1)

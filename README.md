@@ -5,6 +5,10 @@ Rust port of the C++ Clipper 6.4.2 polygon clipping library.
 The current crate lives in `clipper-rust/`. It ports the C++ library code only; demos,
 language bindings, and optional deprecated APIs are out of scope for now.
 
+Source reference: the bundled C++ code is from
+[`Geri-Borbas/Clipper`](https://github.com/Geri-Borbas/Clipper) at commit
+`d59f4d02e0d28fd7ee88d8b7dc93ff5f0806b7b2`.
+
 ## Port Status
 
 The first pass prioritized auditability over idiomatic ownership design. The Rust code

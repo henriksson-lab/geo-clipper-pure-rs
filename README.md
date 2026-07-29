@@ -158,22 +158,6 @@ Latest local optimized run, ten iterations per case:
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.
 
-Arena migration comparison against the prior pointer-allocation Rust baseline:
-
-| Case | Pointer Rust ms | Arena Rust ms | Speedup | Pointer RSS KB | Arena RSS KB | RSS change |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `union_dense` | 48.727 | 44.615 | 1.09x | 4800 | 4800 | 1.00x |
-| `touching_rect_grid` | 386.531 | 256.359 | 1.51x | 10880 | 10560 | 0.97x |
-| `intersection_grid` | 85.559 | 68.542 | 1.25x | 5260 | 5120 | 0.97x |
-| `difference_holes` | 33.819 | 28.965 | 1.17x | 3840 | 3840 | 1.00x |
-| `nested_holes` | 32.407 | 33.564 | 0.97x | 4160 | 4160 | 1.00x |
-| `strict_simple_stars` | 136.168 | 106.079 | 1.28x | 5760 | 5308 | 0.92x |
-| `open_paths_clip` | 52.222 | 48.396 | 1.08x | 2560 | 2560 | 1.00x |
-| `large_coord_xor` | 44.605 | 40.688 | 1.10x | 4160 | 4160 | 1.00x |
-| `offset_stars` | 717.400 | 625.978 | 1.15x | 31136 | 30720 | 0.99x |
-| `offset_open_round` | 199.119 | 194.720 | 1.02x | 4480 | 4480 | 1.00x |
-| `polytree_closed_nested` | 17.691 | 13.107 | 1.35x | 2880 | 2880 | 1.00x |
-
 ## Translation Plan
 
 The original staged plan is saved in `RUST_PORT_PLAN.md`.

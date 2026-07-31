@@ -2,11 +2,19 @@
 name = "geo-clipper-pure-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+description = "Pure Rust port of the C++ Clipper 6 polygon clipping and offsetting library"
+repository = "https://github.com/henriksson-lab/geo-clipper-pure-rs"
+license = "BSL-1.0"
+readme = "README.md"
+keywords = ["polygon", "clipping", "offset", "geometry", "clipper"]
+categories = ["algorithms", "science::geo", "graphics", "mathematics"]
 include = [
-    "Cargo.toml",
-    "README.md",
-    "src/**",
-    "tests/**",
+    "/Cargo.toml",
+    "/License.txt",
+    "/README.md",
+    "/src/**",
+    "/tests/**",
 ]
 
 [features]

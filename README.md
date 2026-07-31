@@ -31,8 +31,10 @@ The original code defines features based on DEFINE's. Translation is made assumi
 ## Crate
 
 ```bash
-cargo test
+cargo add geo-clipper-pure-rs
 ```
+
+The crate has no dependencies. Minimum supported Rust version is 1.85 (edition 2024).
 
 The public API is exposed from the crate root. The translated implementation modules
 are private so raw pointer internals and C++ support structs do not become part of
@@ -104,13 +106,21 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-The test suite includes a C++ oracle test that compiles the bundled
-`Clipper/cpp/clipper.cpp` with `g++` and compares representative boolean and offset
-results against the Rust implementation.
+The test suite includes a C++ oracle test that compiles `Clipper/cpp/clipper.cpp` with
+`g++` and compares representative boolean and offset results against the Rust
+implementation. The upstream C++ sources are not part of this repository or the
+published crate; clone them into `Clipper/` to run the oracle test and the benchmarks:
+
+```bash
+git clone https://github.com/Geri-Borbas/Clipper.git Clipper
+```
+
+Without that checkout the oracle test skips itself rather than failing.
 
 ## Benchmarks
 
-The benchmark harness compares Rust against the bundled C++ implementation for:
+The benchmark harness compares Rust against the upstream C++ implementation (see the
+`Clipper/` checkout above) for:
 
 - `union_dense`: union of a dense grid of overlapping rectangles
 - `touching_rect_grid`: many rectangles sharing exact edges and corners
@@ -131,7 +141,7 @@ Each case is generated deterministically in both Rust and C++. The runner report
 - RSS: peak resident set size from `/usr/bin/time`
 
 The script exits with a non-zero status if any benchmark case fails parity against
-the bundled upstream C++ code.
+the upstream C++ code.
 
 `jittered_sliver_union` is intentionally excluded from the default benchmark table.
 That workload creates many same-scanline intersection ties. Clipper 6 sorts
@@ -180,3 +190,9 @@ Latest local optimized run, ten iterations per case:
 
 Lower ratios are better for Rust. These are local benchmark numbers; rerun on the
 target machine before making performance claims.
+
+
+## License
+
+Boost Software License 1.0 (`BSL-1.0`), matching the upstream C++ Clipper library.
+See [License.txt](License.txt).

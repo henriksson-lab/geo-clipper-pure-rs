@@ -1885,10 +1885,10 @@ impl Clipper {
                 (*outrec).poly_nd = pn;
                 (*pn).parent = ptr::null_mut();
                 (*pn).index = 0;
-                (&mut (*pn).contour).reserve(cnt);
+                (*pn).contour.reserve(cnt);
                 let mut op = (*(*outrec).pts).prev;
                 for _ in 0..cnt {
-                    (&mut (*pn).contour).push((*op).pt);
+                    (*pn).contour.push((*op).pt);
                     op = (*op).prev;
                 }
             }

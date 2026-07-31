@@ -410,12 +410,12 @@ fn main() {
         for _ in 1..iterations {
             summary = run_case(case);
         }
-        if env::var_os("CLIPPER_BENCH_DUMP").is_some()
-            && let Some(size) = case.strip_prefix("jittered_sliver_union_")
-        {
-            let (_, solution) =
-                jittered_sliver_union_sized(size.parse().expect("invalid jittered grid size"));
-            dump_paths(&solution);
+        if env::var_os("CLIPPER_BENCH_DUMP").is_some() {
+            if let Some(size) = case.strip_prefix("jittered_sliver_union_") {
+                let (_, solution) =
+                    jittered_sliver_union_sized(size.parse().expect("invalid jittered grid size"));
+                dump_paths(&solution);
+            }
         }
         let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
         println!(

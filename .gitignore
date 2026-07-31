@@ -1,1 +1,4 @@
 /target
+/.tmp
+# Local clone of the upstream C++ Clipper repo, used by the conformance test and benchmarks
+/Clipper

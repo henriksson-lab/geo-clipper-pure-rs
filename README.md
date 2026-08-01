@@ -2,6 +2,7 @@
 
 Rust port of the C++ [Clipper](https://github.com/Geri-Borbas/Clipper) polygon clipping library. (vs 6.4.2, commit `d59f4d02e0d28fd7ee88d8b7dc93ff5f0806b7b2`.)
 
+* 2026-08-01: CI added
 * 2026-07-30: Initial port. Parity on this crate is tricky, see port design notes
 
 
